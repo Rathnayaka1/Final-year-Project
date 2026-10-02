@@ -63,3 +63,7 @@ Thumbs.db
 # Optional local data files
 *.sqlite
 *.db
+
+# Mobile App & Docs (Excluded from Web Branch)
+mobile-app/
+*.md
