@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Service Center Mobile",
+    "slug": "service-center-mobile",
+    "version": "1.0.0",
+    "sdkVersion": "54.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android"],
+    "jsEngine": "hermes",
+    "plugins": [
+      "expo-asset",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow the app to access your location to prefill the vehicle location map."
+        }
+      ]
+    ]
+  }
+}
