@@ -1,33 +1,109 @@
 import React from 'react';
 
-export default function LoyaltyManager({ customers, loading, onRefresh, onUpdatePoints }) {
+// පෝට් අංකය 5001 ලෙස නිවැරදි කර ඇත
+const API_BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || (import.meta.env.DEV ? '/api' : 'http://10.255.111.96:5001/api');
 
-  const handleRedeem = (customer) => {
-    // 1. පාරිභෝගිකයාගේ බිල්පතේ මුදල විමසීම
-    const input = prompt(`Enter bill amount for ${customer.name} (1000 LKR = 1 Point):`);
-    
-    // User 'Cancel' කළහොත් නවත්වන්න
-    if (input === null) return; 
+async function submitLoyaltyChange({ token, action, customerId, customerName, points }) {
+  const endpoint = action === 'add' ? '/customers/loyalty/add' : '/customers/loyalty/use';
 
-    const billAmount = parseFloat(input);
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      customerId,
+      points,
+      note: action === 'add'
+        ? `Admin added ${points} points to ${customerName}`
+        : `Admin redeemed ${points} points for ${customerName}`
+    })
+  });
 
-    // වැරදි මුදලක් ඇතුළත් කළහොත් පරීක්ෂා කිරීම
-    if (isNaN(billAmount) || billAmount < 1000) {
-      alert("Invalid amount! Please enter a valid amount of 1000 LKR or more.");
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.error || 'Loyalty request failed');
+  }
+
+  return payload;
+}
+
+// ඩේටා නොමැති විට ක්‍රෑෂ් වීම වැළැක්වීමට customers = [] ලෙස default එකක් දී ඇත
+export default function LoyaltyManager({ customers = [], loading, onRefresh, token }) {
+  const handleAddPoints = async (customer) => {
+    const input = prompt(`Enter bill amount for ${customer.name} to add points (1000 LKR = 1 point):`);
+    if (input === null) return;
+
+    const billAmount = Number(input);
+    if (!Number.isFinite(billAmount) || billAmount < 1000) {
+      alert('Invalid amount. Please enter 1000 LKR or more.');
       return;
     }
 
-    // 2. ලකුණු ගණනය කිරීම (1000 ට 1 බැගින්)
-    const pointsToRedeem = Math.floor(billAmount / 1000);
+    const pointsToAdd = Math.floor(billAmount / 1000);
 
-    // 3. පාරිභෝගිකයා සතු ලකුණු ප්‍රමාණවත් දැයි පරීක්ෂා කිරීම
-    if (customer.loyaltyPoints >= pointsToRedeem) {
-      if (onUpdatePoints) {
-        // Parent component එකට customer ID සහ අඩු විය යුතු ලකුණු ගණන යැවීම
-        onUpdatePoints(customer.id, pointsToRedeem);
-      }
-    } else {
-      alert(`Insufficient points! This bill requires ${pointsToRedeem} points, but customer only has ${customer.loyaltyPoints}.`);
+    if (!token) {
+      alert('No admin session token available. Please log in again.');
+      return;
+    }
+
+    try {
+      await submitLoyaltyChange({
+        token,
+        action: 'add',
+        customerId: customer.id || customer._id,
+        customerName: customer.name,
+        points: pointsToAdd
+      });
+
+      await onRefresh?.();
+      alert(`Successfully added ${pointsToAdd} points to ${customer.name}.`);
+    } catch (error) {
+      alert(error.message || 'Failed to add points. Please check backend response.');
+    }
+  };
+
+  const handleRedeemPoints = async (customer) => {
+    const availablePoints = Number(customer.loyaltyPoints || 0);
+    if (availablePoints <= 0) {
+      alert('This customer has 0 loyalty points to redeem.');
+      return;
+    }
+
+    const input = prompt(`Enter points to redeem for ${customer.name} (Available: ${availablePoints}):`);
+    if (input === null) return;
+
+    const pointsToRedeem = Number(input);
+    if (!Number.isFinite(pointsToRedeem) || pointsToRedeem <= 0) {
+      alert('Please enter a valid number of points.');
+      return;
+    }
+
+    if (pointsToRedeem > availablePoints) {
+      alert(`Insufficient points! Customer only has ${availablePoints} points.`);
+      return;
+    }
+
+    if (!token) {
+      alert('No admin session token available. Please log in again.');
+      return;
+    }
+
+    try {
+      await submitLoyaltyChange({
+        token,
+        action: 'use',
+        customerId: customer.id || customer._id,
+        customerName: customer.name,
+        points: pointsToRedeem
+      });
+
+      await onRefresh?.();
+      alert(`Successfully redeemed ${pointsToRedeem} points for ${customer.name}.`);
+    } catch (error) {
+      alert(error.message || 'Failed to redeem points. Please check backend response.');
     }
   };
 
@@ -35,10 +111,10 @@ export default function LoyaltyManager({ customers, loading, onRefresh, onUpdate
     <div className="card">
       <div className="card-header">
         <div>
-          <h2>🎯 Customer Loyalty Points</h2>
-          <p className="muted">Admin visibility for customer points and activity count</p>
+          <h2>Customer Loyalty Points</h2>
+          <p className="text-muted">Admin visibility for customer points and activity count</p>
         </div>
-        <button type="button" className="secondary" onClick={onRefresh} disabled={loading}>
+        <button type="button" className="btn btn-secondary" onClick={onRefresh} disabled={loading}>
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
@@ -59,42 +135,44 @@ export default function LoyaltyManager({ customers, loading, onRefresh, onUpdate
           <tbody>
             {customers.length === 0 && (
               <tr>
-                <td colSpan={7} className="empty">
-                  No customers found.
-                </td>
+                <td colSpan={7} className="empty">No customers found.</td>
               </tr>
             )}
 
             {customers.map((customer) => (
-              <tr key={customer.id}>
+              <tr key={customer.id || customer._id}>
+                <td><strong>{customer.name}</strong></td>
+                <td>{customer.phone || '-'}</td>
+                <td className="text-muted">{customer.email || '-'}</td>
                 <td>
-                  <strong>{customer.name}</strong>
-                </td>
-                <td>{customer.phone || '—'}</td>
-                <td className="muted small">{customer.email || '—'}</td>
-                <td>
-                  <strong className="stat-value" style={{ fontSize: '1.2rem' }}>
+                  <strong className="stat-value" style={{ fontSize: '1.2rem', color: (customer.loyaltyPoints || 0) > 0 ? '#2e7d32' : '#666' }}>
                     {customer.loyaltyPoints || 0}
                   </strong>
                 </td>
-                <td>{customer.transactionCount || 0}</td>  
-                <td className="muted small">
-                  {customer.lastTransactionAt
-                    ? new Date(customer.lastTransactionAt).toLocaleDateString()
-                    : '—'}
+                <td>{customer.transactionCount || 0}</td>
+                <td className="text-muted">
+                  {customer.lastTransactionAt ? new Date(customer.lastTransactionAt).toLocaleDateString() : '-'}
                 </td>
                 <td>
-                  <button 
-                    className="danger small" 
-                    onClick={() => handleRedeem(customer)}
-                    disabled={customer.loyaltyPoints <= 0}
-                    style={{ 
-                        padding: '5px 10px', 
-                        backgroundColor: customer.loyaltyPoints <= 0 ? '#ccc' : '#e74c3c', 
-                        color: 'white', 
-                        border: 'none', 
-                        borderRadius: '4px', 
-                        cursor: customer.loyaltyPoints <= 0 ? 'not-allowed' : 'pointer' 
+                  <button
+                    className="btn btn-primary small"
+                    onClick={() => handleAddPoints(customer)}
+                    style={{ marginRight: '5px', padding: '5px 10px', backgroundColor: '#1976d2', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                  >
+                    Add Bill
+                  </button>
+
+                  <button
+                    className="btn btn-danger small"
+                    onClick={() => handleRedeemPoints(customer)}
+                    disabled={Number(customer.loyaltyPoints || 0) <= 0}
+                    style={{
+                      padding: '5px 10px',
+                      backgroundColor: Number(customer.loyaltyPoints || 0) <= 0 ? '#ccc' : '#d32f2f',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: Number(customer.loyaltyPoints || 0) <= 0 ? 'not-allowed' : 'pointer'
                     }}
                   >
                     Redeem

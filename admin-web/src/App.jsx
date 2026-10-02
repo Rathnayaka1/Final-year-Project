@@ -46,8 +46,87 @@ export default function App() {
   
   const [services, setServices] = useState([]);
   const [serviceCenters, setServiceCenters] = useState([]);
-  const [stocks, setStocks] = useState([]);
-  const [payments, setPayments] = useState([]);
+  
+  // Stocks සඳහා LocalStorage භාවිතය
+  const [stocks, setStocks] = useState(() => {
+    const savedStocks = window.localStorage.getItem('ssc_admin_stocks');
+    if (savedStocks) {
+      try { return JSON.parse(savedStocks); } catch (e) {}
+    }
+    return [
+      {
+        id: 1,
+        partName: 'Engine Oil Filter',
+        partNumber: 'EOF-1234',
+        quantity: 45,
+        minQuantity: 20,
+        unitPrice: 12.99,
+        supplier: 'AutoParts Inc'
+      },
+      {
+        id: 2,
+        partName: 'Brake Pads',
+        partNumber: 'BP-5678',
+        quantity: 8,
+        minQuantity: 15,
+        unitPrice: 49.99,
+        supplier: 'Brake Masters'
+      },
+      {
+        id: 3,
+        partName: 'Air Filter',
+        partNumber: 'AF-9012',
+        quantity: 0,
+        minQuantity: 10,
+        unitPrice: 18.50,
+        supplier: 'Filter Depot'
+      }
+    ];
+  });
+
+  // Payments සඳහා LocalStorage භාවිතය
+  const [payments, setPayments] = useState(() => {
+    const savedPayments = window.localStorage.getItem('ssc_admin_payments');
+    if (savedPayments) {
+      try { return JSON.parse(savedPayments); } catch (e) {}
+    }
+    return [
+      {
+        id: 1,
+        customerName: 'John Smith',
+        appointmentId: 'APT-001',
+        amount: 129.99,
+        paymentMethod: 'card',
+        status: 'completed',
+        description: 'Oil change + filter replacement',
+        createdAt: new Date().toISOString(),
+        date: new Date().toLocaleDateString()
+      },
+      {
+        id: 2,
+        customerName: 'Sarah Johnson',
+        appointmentId: 'APT-002',
+        amount: 249.50,
+        paymentMethod: 'cash',
+        status: 'completed',
+        description: 'Brake service',
+        createdAt: new Date(Date.now() - 86400000).toISOString(),
+        date: new Date(Date.now() - 86400000).toLocaleDateString()
+      },
+      {
+        id: 3,
+        customerName: 'Mike Davis',
+        appointmentId: 'APT-003',
+        amount: 89.00,
+        paymentMethod: 'online',
+        status: 'pending',
+        description: 'Diagnostic check',
+        createdAt: new Date().toISOString(),
+        date: new Date().toLocaleDateString()
+      }
+    ];
+  });
+
   const [appointments, setAppointments] = useState([]);
   const [customerLoyalty, setCustomerLoyalty] = useState([]);
   const [technicians, setTechnicians] = useState([]);
@@ -62,12 +141,10 @@ export default function App() {
     if (!token) return;
     try {
       setLoading(true);
-      setError(''); // Clear previous errors
+      setError('');
       
-      // Determine which data to fetch based on user role
       const fetchPromises = [];
       
-      // Services and Service Centers - only for admin
       if (hasPermission(userRole, 'services')) {
         fetchPromises.push(
           fetchServices(token)
@@ -89,7 +166,6 @@ export default function App() {
         );
       }
       
-      // Appointments - for admin, manager, supervisor, cashier
       if (hasPermission(userRole, 'appointments')) {
         fetchPromises.push(
           fetchAppointments(token)
@@ -101,7 +177,6 @@ export default function App() {
         );
       }
       
-      // Loyalty - only for admin
       if (hasPermission(userRole, 'customerLoyalty')) {
         fetchPromises.push(
           fetchCustomerLoyalty(token)
@@ -113,7 +188,6 @@ export default function App() {
         );
       }
       
-      // Technicians - for admin and supervisor
       if (hasPermission(userRole, 'technicians')) {
         fetchPromises.push(
           fetchTechnicians(token)
@@ -125,10 +199,8 @@ export default function App() {
         );
       }
 
-      // Execute all permissible requests in parallel
       const results = await Promise.all(fetchPromises);
       
-      // Update state based on results
       results.forEach(result => {
         if (result.type === 'services') setServices(result.data);
         if (result.type === 'centers') setServiceCenters(result.data);
@@ -137,78 +209,12 @@ export default function App() {
         if (result.type === 'technicians') setTechnicians(result.data);
       });
       
-      // Mock data for stocks and payments (replace with actual API calls when backend is ready)
-      setStocks([
-        {
-          id: 1,
-          partName: 'Engine Oil Filter',
-          partNumber: 'EOF-1234',
-          quantity: 45,
-          minQuantity: 20,
-          unitPrice: 12.99,
-          supplier: 'AutoParts Inc'
-        },
-        {
-          id: 2,
-          partName: 'Brake Pads',
-          partNumber: 'BP-5678',
-          quantity: 8,
-          minQuantity: 15,
-          unitPrice: 49.99,
-          supplier: 'Brake Masters'
-        },
-        {
-          id: 3,
-          partName: 'Air Filter',
-          partNumber: 'AF-9012',
-          quantity: 0,
-          minQuantity: 10,
-          unitPrice: 18.50,
-          supplier: 'Filter Depot'
-        }
-      ]);
-
-      setPayments([
-        {
-          id: 1,
-          customerName: 'John Smith',
-          appointmentId: 'APT-001',
-          amount: 129.99,
-          paymentMethod: 'card',
-          status: 'completed',
-          description: 'Oil change + filter replacement',
-          createdAt: new Date().toISOString(),
-          date: new Date().toLocaleDateString()
-        },
-        {
-          id: 2,
-          customerName: 'Sarah Johnson',
-          appointmentId: 'APT-002',
-          amount: 249.50,
-          paymentMethod: 'cash',
-          status: 'completed',
-          description: 'Brake service',
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          date: new Date(Date.now() - 86400000).toLocaleDateString()
-        },
-        {
-          id: 3,
-          customerName: 'Mike Davis',
-          appointmentId: 'APT-003',
-          amount: 89.00,
-          paymentMethod: 'online',
-          status: 'pending',
-          description: 'Diagnostic check',
-          createdAt: new Date().toISOString(),
-          date: new Date().toLocaleDateString()
-        }
-      ]);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, [token, userRole]);
 
   useEffect(() => {
     if (token) {
@@ -269,7 +275,6 @@ export default function App() {
     if (!window.confirm('Are you sure you want to delete this service?')) return;
     try {
       setLoading(true);
-      // Mock delete - replace with actual API call
       setServices((prev) => prev.filter((svc) => svc.id !== id));
     } catch (err) {
       setError(err.message);
@@ -282,9 +287,12 @@ export default function App() {
     if (!token) return;
     try {
       setLoading(true);
-      // Mock create - replace with actual API call
       const newStock = { id: Date.now(), ...payload };
-      setStocks((prev) => [newStock, ...prev]);
+      setStocks((prev) => {
+        const updated = [newStock, ...prev];
+        window.localStorage.setItem('ssc_admin_stocks', JSON.stringify(updated));
+        return updated;
+      });
       onSuccess();
     } catch (err) {
       setError(err.message);
@@ -297,10 +305,11 @@ export default function App() {
     if (!token) return;
     try {
       setLoading(true);
-      // Mock update - replace with actual API call
-      setStocks((prev) =>
-        prev.map((stock) => (stock.id === id ? { ...stock, ...payload } : stock))
-      );
+      setStocks((prev) => {
+        const updated = prev.map((stock) => (stock.id === id ? { ...stock, ...payload } : stock));
+        window.localStorage.setItem('ssc_admin_stocks', JSON.stringify(updated));
+        return updated;
+      });
       onSuccess();
     } catch (err) {
       setError(err.message);
@@ -314,8 +323,11 @@ export default function App() {
     if (!window.confirm('Are you sure you want to delete this part?')) return;
     try {
       setLoading(true);
-      // Mock delete - replace with actual API call
-      setStocks((prev) => prev.filter((stock) => stock.id !== id));
+      setStocks((prev) => {
+        const updated = prev.filter((stock) => stock.id !== id);
+        window.localStorage.setItem('ssc_admin_stocks', JSON.stringify(updated));
+        return updated;
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -353,18 +365,24 @@ export default function App() {
     }
   };
 
+  // මෙතනදී payments වෙනස් වූ වහාම LocalStorage එකේ ස්ථිරව සේව් වන ලෙස සකසා ඇත
   const handlePaymentCreate = async (payload, onSuccess) => {
     if (!token) return;
     try {
       setLoading(true);
-      // Mock create - replace with actual API call
       const newPayment = {
         id: Date.now(),
         ...payload,
         createdAt: new Date().toISOString(),
         date: new Date().toLocaleDateString()
       };
-      setPayments((prev) => [newPayment, ...prev]);
+      
+      setPayments((prev) => {
+        const updated = [newPayment, ...prev];
+        window.localStorage.setItem('ssc_admin_payments', JSON.stringify(updated));
+        return updated;
+      });
+
       onSuccess();
     } catch (err) {
       setError(err.message);
@@ -390,8 +408,6 @@ export default function App() {
     setAuth(null);
     setAppointments([]);
     setServices([]);
-    setStocks([]);
-    setPayments([]);
     setError('');
     window.localStorage.removeItem('ssc_admin_session');
   };
@@ -488,101 +504,6 @@ export default function App() {
             🔧 Technicians
           </button>
         )}
-        
-        {/* Analytics buttons - only show for admin and manager */}
-        {(auth.user.role === 'admin' || auth.user.role === 'manager') && (
-          <>
-            {/* Divider */}
-            <div style={{ width: '1px', backgroundColor: '#e2e8f0', margin: '0 0.5rem' }}></div>
-            
-            {/* Monthly Income Button */}
-            <button
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#fef3c7',
-                border: '2px solid #fcd34d',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: '#78350f',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#fef08a';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#fef3c7';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <span>Monthly Income</span>
-            </button>
-
-            {/* Customer Demand Button */}
-            <button
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#dbeafe',
-                border: '2px solid #7dd3fc',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: '#0c4a6e',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#bae6fd';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#dbeafe';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <span>Customer Demand</span>
-            </button>
-
-            {/* Spare Parts Needed Button */}
-            <button
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#fee2e2',
-                border: '2px solid #fca5a5',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: '#7f1d1d',
-                whiteSpace: 'nowrap',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#fecaca';
-                e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#fee2e2';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <span>Spare Parts Needed</span>
-            </button>
-          </>
-        )}
       </nav>
 
       <div className="tab-content">
@@ -625,6 +546,8 @@ export default function App() {
           <ProtectedFeature userRole={auth.user.role} feature="payments">
             <PaymentManager
               payments={payments}
+              customers={customerLoyalty}
+              token={token}
               onCreate={handlePaymentCreate}
               loading={loading}
             />
@@ -647,6 +570,7 @@ export default function App() {
               customers={customerLoyalty}
               loading={loading}
               onRefresh={loadDashboard}
+              token={token}
             />
           </ProtectedFeature>
         )}
