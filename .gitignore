@@ -1,0 +1,65 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Build outputs
+build/
+dist/
+coverage/
+**/build/
+**/dist/
+**/coverage/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime / process files
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Cache directories
+.cache/
+.parcel-cache/
+.eslintcache
+*.tsbuildinfo
+.vite/
+
+# React Native / Expo
+.expo/
+.expo-shared/
+android/
+ios/
+*.jks
+*.keystore
+
+# Test / tooling artifacts
+.nyc_output/
+
+# IDE / editor files
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Optional local data files
+*.sqlite
+*.db
