@@ -5,10 +5,7 @@
     "version": "1.0.0",
     "sdkVersion": "54.0.0",
     "orientation": "portrait",
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "jsEngine": "hermes",
     "plugins": [
       "expo-asset",
@@ -17,8 +14,7 @@
         {
           "locationWhenInUsePermission": "Allow the app to access your location to prefill the vehicle location map."
         }
-      ],
-      "@react-native-community/datetimepicker"
+      ]
     ]
   }
 }
