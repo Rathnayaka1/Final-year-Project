@@ -44,7 +44,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-const DEFAULT_PORT = Number(process.env.PORT || 5001);
+const DEFAULT_PORT = Number(process.env.PORT || 5004);
 
 function startServer(port = DEFAULT_PORT) {
   const server = app.listen(port, '0.0.0.0', () => {

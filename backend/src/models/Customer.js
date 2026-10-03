@@ -11,7 +11,7 @@ const customerSchema = new mongoose.Schema(
     role: { type: String, enum: ['customer'], default: 'customer' },
     profileImage: { type: String },
     defaultVehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
-    loyaltyPoints: { type: Number, default: 0, min: 0 },
+    loyaltyPoints: { type: Number, default: 0 },
     loyaltyTransactions: [
       {
         type: { type: String, enum: ['earn', 'redeem'], required: true },

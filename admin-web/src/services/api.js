@@ -7,7 +7,7 @@ function resolveApiBaseUrl() {
   if (import.meta.env.DEV) {
     return '/api';
   }
-  return 'http://10.255.111.96:5001/api';
+  return 'http://10.255.111.96:5004/api';
 }
 
 const API_BASE_URL = resolveApiBaseUrl();

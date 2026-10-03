@@ -14,9 +14,6 @@ const getInitials = (name) => {
 };
 
 export default function LoyaltyManager({ customers = [], loading, onRefresh, token }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterLevel, setFilterLevel] = useState('All');
-
   const handleAddPoints = async (customer) => {
     const input = prompt(`Enter bill amount for ${customer.name} to add points (1000 LKR = 1 point):`);
     if (input === null) return;
@@ -66,32 +63,13 @@ export default function LoyaltyManager({ customers = [], loading, onRefresh, tok
     }
   };
 
-  const filteredCustomers = useMemo(() => {
-    return customers.filter(c => {
-      const matchSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || (c.phone || '').includes(searchTerm);
-      if (!matchSearch) return false;
-      if (filterLevel === 'All') return true;
-      const tierName = getTier(c.loyaltyPoints || 0).name;
-      return tierName.includes(filterLevel);
-    });
-  }, [customers, searchTerm, filterLevel]);
-
-  const recentTransactions = useMemo(() => {
-    let all = [];
-    customers.forEach(c => {
-      if (c.transactions && Array.isArray(c.transactions)) {
-        all = [...all, ...c.transactions];
-      }
-    });
-    return all.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 15);
-  }, [customers]);
 
   return (
     <div className="loyalty-container">
       <style>{`
         .loyalty-container {
           display: grid;
-          grid-template-columns: 1fr 350px;
+          grid-template-columns: 1fr;
           gap: 24px;
           align-items: start;
         }
@@ -281,80 +259,69 @@ export default function LoyaltyManager({ customers = [], loading, onRefresh, tok
       `}</style>
 
       <div className="loyalty-main">
-        <div className="loyalty-header">
-          <h2>Manage Customer Loyalty</h2>
-          <button className="btn btn-secondary" onClick={onRefresh} disabled={loading}>
+        <div className="loyalty-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h2 style={{ margin: 0, color: '#2c3e50' }}>Customer Loyalty Points</h2>
+            <p style={{ margin: '4px 0 0 0', color: '#7f8c8d', fontSize: '0.9rem' }}>Admin visibility for customer points and activity count</p>
+          </div>
+          <button className="btn btn-secondary" onClick={onRefresh} disabled={loading} style={{ background: '#f39c12', color: '#fff', border: 'none' }}>
             {loading ? 'Refreshing...' : 'Refresh'}
           </button>
         </div>
 
-        <div className="filter-row">
-          <input 
-            type="text" 
-            className="search-input" 
-            placeholder="Search by name or phone..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          <select 
-            className="filter-select"
-            value={filterLevel}
-            onChange={(e) => setFilterLevel(e.target.value)}
-          >
-            <option value="All">All Levels</option>
-            <option value="Platinum">Platinum</option>
-            <option value="Gold">Gold</option>
-            <option value="Silver">Silver</option>
-            <option value="Bronze">Bronze</option>
-          </select>
-        </div>
 
-        <table className="loyalty-table">
+
+        <table className="loyalty-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
           <thead>
-            <tr>
-              <th>Customer</th>
-              <th>Phone</th>
-              <th>Current Points</th>
-              <th>Actions</th>
+            <tr style={{ color: '#e67e22', borderBottom: '2px solid #ecf0f1', textAlign: 'left', fontSize: '0.85rem' }}>
+              <th style={{ padding: '12px' }}>CUSTOMER</th>
+              <th style={{ padding: '12px' }}>PHONE</th>
+              <th style={{ padding: '12px' }}>EMAIL</th>
+              <th style={{ padding: '12px' }}>POINTS</th>
+              <th style={{ padding: '12px' }}>TRANSACTIONS</th>
+              <th style={{ padding: '12px' }}>LAST ACTIVITY</th>
+              <th style={{ padding: '12px' }}>ACTION</th>
             </tr>
           </thead>
           <tbody>
-            {filteredCustomers.length === 0 ? (
+            {customers.length === 0 ? (
               <tr>
-                <td colSpan="4" style={{ textAlign: 'center', padding: '24px', color: '#7f8c8d' }}>
-                  No customers found matching your criteria.
+                <td colSpan="7" style={{ textAlign: 'center', padding: '24px', color: '#7f8c8d' }}>
+                  No customers found.
                 </td>
               </tr>
             ) : (
-              filteredCustomers.map(customer => {
+              customers.map(customer => {
                 const points = customer.loyaltyPoints || 0;
-                const tier = getTier(points);
+                const txCount = customer.transactionCount || customer.transactions?.length || 0;
+                let lastActivity = '-';
+                if (customer.lastTransactionAt) {
+                  lastActivity = new Date(customer.lastTransactionAt).toLocaleDateString();
+                } else if (customer.transactions?.length > 0) {
+                  const lastTx = customer.transactions[customer.transactions.length - 1];
+                  lastActivity = new Date(lastTx.createdAt || customer.updatedAt).toLocaleDateString();
+                } else if (customer.updatedAt) {
+                  lastActivity = new Date(customer.updatedAt).toLocaleDateString();
+                }
+                
                 return (
-                  <tr key={customer.id || customer._id}>
-                    <td>
-                      <div className="customer-cell">
-                        <div className="avatar">{getInitials(customer.name)}</div>
-                        <div className="customer-info">
-                          <span className="customer-name">{customer.name}</span>
-                          <span className="customer-email">{customer.email || 'No email'}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{ color: '#2c3e50', fontWeight: '500' }}>{customer.phone || '-'}</td>
-                    <td>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                        <span className="points-val">{points}</span>
-                        <span className="tier-badge" style={{ color: tier.color, background: tier.bg }}>
-                          {tier.name}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="action-btns">
-                        <button className="btn-add" onClick={() => handleAddPoints(customer)}>
-                          + Add Points
+                  <tr key={customer.id || customer._id} style={{ borderBottom: '1px solid #ecf0f1' }}>
+                    <td style={{ padding: '12px', fontWeight: '500', color: '#34495e' }}>{customer.name}</td>
+                    <td style={{ padding: '12px', color: '#7f8c8d' }}>{customer.phone || '-'}</td>
+                    <td style={{ padding: '12px', color: '#7f8c8d' }}>{customer.email || 'No email'}</td>
+                    <td style={{ padding: '12px', fontWeight: 'bold', color: '#27ae60' }}>{points}</td>
+                    <td style={{ padding: '12px', color: '#7f8c8d' }}>{txCount}</td>
+                    <td style={{ padding: '12px', color: '#7f8c8d' }}>{lastActivity}</td>
+                    <td style={{ padding: '12px' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button 
+                          onClick={() => handleAddPoints(customer)}
+                          style={{ background: '#f39c12', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                          Add Bill
                         </button>
-                        <button className="btn-redeem" onClick={() => handleRedeemPoints(customer)} disabled={points <= 0}>
+                        <button 
+                          onClick={() => handleRedeemPoints(customer)} disabled={points <= 0}
+                          style={{ background: '#f39c12', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: points <= 0 ? 'not-allowed' : 'pointer', fontSize: '0.8rem', fontWeight: 'bold', opacity: points <= 0 ? 0.6 : 1 }}>
                           Redeem
                         </button>
                       </div>
@@ -367,32 +334,7 @@ export default function LoyaltyManager({ customers = [], loading, onRefresh, tok
         </table>
       </div>
 
-      <div className="loyalty-sidebar">
-        <h3 style={{ margin: '0 0 16px 0', color: '#2c3e50' }}>Recent Loyalty Transactions</h3>
-        {recentTransactions.length === 0 ? (
-          <p style={{ color: '#7f8c8d', fontSize: '0.9rem' }}>No recent transactions.</p>
-        ) : (
-          <div className="tx-list">
-            {recentTransactions.map(tx => (
-              <div key={tx._id || Math.random()} className={`tx-card ${tx.type}`}>
-                <div className="tx-header">
-                  <span>{tx.type === 'earn' ? 'Points Added' : 'Points Redeemed'}</span>
-                  <span className={`tx-points ${tx.type}`}>
-                    {tx.type === 'earn' ? '+' : '-'}{tx.points}
-                  </span>
-                </div>
-                <div className="tx-details">
-                  <span><strong>Customer:</strong> {tx.customerName}</span>
-                  <span><strong>Note:</strong> {tx.note}</span>
-                </div>
-                <div className="tx-date">
-                  {new Date(tx.createdAt).toLocaleString()}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+
     </div>
   );
 }
