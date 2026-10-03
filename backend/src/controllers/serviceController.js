@@ -8,8 +8,12 @@ function serializeService(doc) {
 }
 
 async function getServices(req, res) {
-  const services = await Service.find().sort({ createdAt: -1 });
-  return res.status(200).json({ services: services.map(serializeService) });
+  try {
+    const services = await Service.find().sort({ createdAt: -1 });
+    return res.status(200).json({ services: services.map(serializeService) });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 }
 
 async function createServiceHandler(req, res) {

@@ -11,8 +11,16 @@ function normalizeCode(code) {
 }
 
 async function getNextQueueNumber() {
-  const latest = await Appointment.findOne().sort({ queueNumber: -1 }).select('queueNumber');
-  return latest?.queueNumber ? latest.queueNumber + 1 : 101;
+  try {
+    const latest = await Appointment.findOne()
+      .sort({ queueNumber: -1 })
+      .select('queueNumber')
+      .lean();
+    return (latest?.queueNumber ?? 100) + 1;
+  } catch (error) {
+    console.error('Queue number error:', error);
+    return 101;
+  }
 }
 
 function serializeAppointment(doc) {
@@ -239,21 +247,25 @@ async function updateAppointmentStatusHandler(req, res) {
     return res.status(400).json({ error: 'Invalid queue status' });
   }
 
-  const update = {};
-  if (status) update.status = status;
-  if (queueStatus) update.queueStatus = queueStatus;
+  try {
+    const update = {};
+    if (status) update.status = status;
+    if (queueStatus) update.queueStatus = queueStatus;
 
-  const updated = await Appointment.findByIdAndUpdate(id, update, { new: true });
+    const updated = await Appointment.findByIdAndUpdate(id, update, { new: true });
 
-  if (!updated) {
-    return res.status(404).json({ error: 'Appointment not found' });
+    if (!updated) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    if (status === STATUS.COMPLETED) {
+      await awardLoyaltyPointsForCompletion(updated);
+    }
+
+    return res.status(200).json({ appointment: serializeAppointment(updated) });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
-
-  if (status === STATUS.COMPLETED) {
-    await awardLoyaltyPointsForCompletion(updated);
-  }
-
-  return res.status(200).json({ appointment: serializeAppointment(updated) });
 }
 
 async function lookupAppointmentHandler(req, res) {
@@ -264,13 +276,17 @@ async function lookupAppointmentHandler(req, res) {
     return res.status(400).json({ error: 'Confirmation code is required' });
   }
 
-  const appointment = await Appointment.findOne({ confirmationCode: normalized });
+  try {
+    const appointment = await Appointment.findOne({ confirmationCode: normalized });
 
-  if (!appointment) {
-    return res.status(404).json({ error: 'Appointment not found' });
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    return res.status(200).json({ appointment: serializeAppointment(appointment) });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
   }
-
-  return res.status(200).json({ appointment: serializeAppointment(appointment) });
 }
 
 module.exports = {
