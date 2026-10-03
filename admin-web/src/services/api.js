@@ -7,8 +7,7 @@ function resolveApiBaseUrl() {
   if (import.meta.env.DEV) {
     return '/api';
   }
-  return
-return 'http://10.255.111.96:5000/api';
+  return 'http://10.255.111.96:5001/api';
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
@@ -39,6 +38,7 @@ export function login(credentials) {
   return request('/auth/login', { method: 'POST', data: credentials });
 }
 
+// Service API
 export function fetchServices(token) {
   return request('/services', { token });
 }
@@ -51,6 +51,11 @@ export function updateService(id, data, token) {
   return request(`/services/${id}`, { method: 'PATCH', data, token });
 }
 
+export function deleteService(id, token) {
+  return request(`/services/${id}`, { method: 'DELETE', token });
+}
+
+// Appointment API
 export function fetchAppointments(token) {
   return request('/appointments', { token });
 }
@@ -67,6 +72,7 @@ export function lookupAppointment(code) {
   return request(`/appointments/lookup/${encodeURIComponent(code)}`);
 }
 
+// Service Center API
 export function fetchServiceCenters(token) {
   return request('/service-centers', { token });
 }
@@ -79,10 +85,45 @@ export function updateServiceCenter(id, data, token) {
   return request(`/service-centers/${id}`, { method: 'PATCH', data, token });
 }
 
+// Loyalty API
 export function fetchCustomerLoyalty(token) {
   return request('/customers/admin/loyalty', { token });
 }
 
+export function earnLoyaltyPoints(customerId, points, note, token) {
+  return request('/customers/loyalty/add', {
+    method: 'POST',
+    data: { customerId, points, note },
+    token
+  });
+}
+
+export function redeemLoyaltyPoints(customerId, points, note, token) {
+  return request('/customers/loyalty/use', {
+    method: 'POST',
+    data: { customerId, points, note },
+    token
+  });
+}
+
+// Stock API
+export function fetchStocks(token) {
+  return request('/stocks', { token });
+}
+
+export function createStock(data, token) {
+  return request('/stocks', { method: 'POST', data, token });
+}
+
+export function updateStock(id, data, token) {
+  return request(`/stocks/${id}`, { method: 'PATCH', data, token });
+}
+
+export function deleteStock(id, token) {
+  return request(`/stocks/${id}`, { method: 'DELETE', token });
+}
+
+// Technician API
 export function fetchTechnicians(token) {
   return request('/technicians', { token });
 }

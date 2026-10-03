@@ -266,6 +266,10 @@ async function listCustomerLoyalty(req, res) {
       phone: customer.phone,
       loyaltyPoints: customer.loyaltyPoints || 0,
       transactionCount: customer.loyaltyTransactions?.length || 0,
+      transactions: (customer.loyaltyTransactions || []).slice(-5).map(t => ({
+        ...t.toObject(),
+        customerName: customer.name
+      })),
       lastTransactionAt:
         customer.loyaltyTransactions?.length > 0
           ? customer.loyaltyTransactions[customer.loyaltyTransactions.length - 1].createdAt

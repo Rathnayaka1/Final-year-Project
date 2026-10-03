@@ -1,29 +1,35 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import LoginForm from './components/LoginForm';
 import ProtectedFeature from './components/ProtectedFeature';
-import ServiceManager from './components/ServiceManager';
 import ServiceCenterManager from './components/ServiceCenterManager';
-import StockManager from './components/StockManager';
 import PaymentManager from './components/PaymentManager';
-import AppointmentTable from './components/AppointmentTable';
 import LoyaltyManager from './components/LoyaltyManager';
+import ServiceManager from './components/ServiceManager';
+import StockManager from './components/StockManager';
+import AppointmentTable from './components/AppointmentTable';
 import TechnicianManager from './components/TechnicianManager';
+
 import { hasPermission, getAccessibleFeatures, getRoleDescription, ROLE_LABELS } from './utils/rolePermissions';
 import {
   login as loginRequest,
-  fetchServices,
-  createService,
-  updateService,
   fetchServiceCenters,
   createServiceCenter,
   updateServiceCenter,
   fetchCustomerLoyalty,
+  fetchServices,
+  createService,
+  updateService,
+  deleteService,
+  fetchStocks,
+  createStock,
+  updateStock,
+  deleteStock,
+  fetchAppointments,
+  updateAppointment,
   fetchTechnicians,
   createTechnician,
   updateTechnician,
-  deleteTechnician,
-  fetchAppointments,
-  updateAppointment
+  deleteTechnician
 } from './services/api';
 
 export default function App() {
@@ -44,46 +50,12 @@ export default function App() {
     return 'services';
   });
   
-  const [services, setServices] = useState([]);
   const [serviceCenters, setServiceCenters] = useState([]);
+  const [services, setServices] = useState([]);
+  const [stocks, setStocks] = useState([]);
+  const [appointments, setAppointments] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
   
-  // Stocks සඳහා LocalStorage භාවිතය
-  const [stocks, setStocks] = useState(() => {
-    const savedStocks = window.localStorage.getItem('ssc_admin_stocks');
-    if (savedStocks) {
-      try { return JSON.parse(savedStocks); } catch (e) {}
-    }
-    return [
-      {
-        id: 1,
-        partName: 'Engine Oil Filter',
-        partNumber: 'EOF-1234',
-        quantity: 45,
-        minQuantity: 20,
-        unitPrice: 12.99,
-        supplier: 'AutoParts Inc'
-      },
-      {
-        id: 2,
-        partName: 'Brake Pads',
-        partNumber: 'BP-5678',
-        quantity: 8,
-        minQuantity: 15,
-        unitPrice: 49.99,
-        supplier: 'Brake Masters'
-      },
-      {
-        id: 3,
-        partName: 'Air Filter',
-        partNumber: 'AF-9012',
-        quantity: 0,
-        minQuantity: 10,
-        unitPrice: 18.50,
-        supplier: 'Filter Depot'
-      }
-    ];
-  });
-
   // Payments සඳහා LocalStorage භාවිතය
   const [payments, setPayments] = useState(() => {
     const savedPayments = window.localStorage.getItem('ssc_admin_payments');
@@ -127,12 +99,10 @@ export default function App() {
     ];
   });
 
-  const [appointments, setAppointments] = useState([]);
   const [customerLoyalty, setCustomerLoyalty] = useState([]);
-  const [technicians, setTechnicians] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [updatingAppointmentId, setUpdatingAppointmentId] = useState(null);
   const [error, setError] = useState('');
-  const [updatingId, setUpdatingId] = useState(null);
 
   const token = auth?.token;
   const userRole = auth?.user?.role;
@@ -145,16 +115,6 @@ export default function App() {
       
       const fetchPromises = [];
       
-      if (hasPermission(userRole, 'services')) {
-        fetchPromises.push(
-          fetchServices(token)
-            .then(res => ({ type: 'services', data: res.services }))
-            .catch(err => { 
-              console.warn('Could not fetch services:', err.message);
-              return { type: 'services', data: [] }; 
-            })
-        );
-      }
       if (hasPermission(userRole, 'serviceCenters')) {
         fetchPromises.push(
           fetchServiceCenters(token)
@@ -165,14 +125,47 @@ export default function App() {
             })
         );
       }
-      
+
+      if (hasPermission(userRole, 'services')) {
+        fetchPromises.push(
+          fetchServices(token)
+            .then(res => ({ type: 'services', data: res.services || res || [] }))
+            .catch(err => {
+              console.warn('Could not fetch services:', err.message);
+              return { type: 'services', data: [] };
+            })
+        );
+      }
+
+      if (hasPermission(userRole, 'stocks')) {
+        fetchPromises.push(
+          fetchStocks(token)
+            .then(res => ({ type: 'stocks', data: res.stocks || res || [] }))
+            .catch(err => {
+              console.warn('Could not fetch stocks:', err.message);
+              return { type: 'stocks', data: [] };
+            })
+        );
+      }
+
       if (hasPermission(userRole, 'appointments')) {
         fetchPromises.push(
           fetchAppointments(token)
-            .then(res => ({ type: 'appointments', data: res.appointments }))
+            .then(res => ({ type: 'appointments', data: res.appointments || res || [] }))
             .catch(err => {
               console.warn('Could not fetch appointments:', err.message);
               return { type: 'appointments', data: [] };
+            })
+        );
+      }
+
+      if (hasPermission(userRole, 'technicians')) {
+        fetchPromises.push(
+          fetchTechnicians(token)
+            .then(res => ({ type: 'technicians', data: res.technicians || res || [] }))
+            .catch(err => {
+              console.warn('Could not fetch technicians:', err.message);
+              return { type: 'technicians', data: [] };
             })
         );
       }
@@ -188,25 +181,15 @@ export default function App() {
         );
       }
       
-      if (hasPermission(userRole, 'technicians')) {
-        fetchPromises.push(
-          fetchTechnicians(token)
-            .then(res => ({ type: 'technicians', data: res.technicians || [] }))
-            .catch(err => {
-              console.warn('Could not fetch technicians:', err.message);
-              return { type: 'technicians', data: [] };
-            })
-        );
-      }
-
       const results = await Promise.all(fetchPromises);
       
       results.forEach(result => {
-        if (result.type === 'services') setServices(result.data);
         if (result.type === 'centers') setServiceCenters(result.data);
-        if (result.type === 'appointments') setAppointments(result.data);
+        if (result.type === 'services') setServices(Array.isArray(result.data) ? result.data : []);
+        if (result.type === 'stocks') setStocks(Array.isArray(result.data) ? result.data : []);
+        if (result.type === 'appointments') setAppointments(Array.isArray(result.data) ? result.data : []);
+        if (result.type === 'technicians') setTechnicians(Array.isArray(result.data) ? result.data : []);
         if (result.type === 'loyalty') setCustomerLoyalty(result.data);
-        if (result.type === 'technicians') setTechnicians(result.data);
       });
       
     } catch (err) {
@@ -219,10 +202,6 @@ export default function App() {
   useEffect(() => {
     if (token) {
       loadDashboard();
-    } else {
-      fetchServices()
-        .then((payload) => setServices(payload.services))
-        .catch(() => {});
     }
   }, [token, userRole, loadDashboard]);
 
@@ -240,108 +219,13 @@ export default function App() {
     }
   };
 
-  const handleServiceCreate = async (payload, onSuccess) => {
-    if (!token) return;
-    try {
-      setLoading(true);
-      const { service } = await createService(payload, token);
-      setServices((prev) => [service, ...prev]);
-      onSuccess();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleServiceUpdate = async (id, payload, onSuccess) => {
-    if (!token) return;
-    try {
-      setLoading(true);
-      const { service } = await updateService(id, payload, token);
-      setServices((prev) =>
-        prev.map((svc) => (svc.id === id ? service : svc))
-      );
-      onSuccess();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleServiceDelete = async (id) => {
-    if (!token) return;
-    if (!window.confirm('Are you sure you want to delete this service?')) return;
-    try {
-      setLoading(true);
-      setServices((prev) => prev.filter((svc) => svc.id !== id));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStockCreate = async (payload, onSuccess) => {
-    if (!token) return;
-    try {
-      setLoading(true);
-      const newStock = { id: Date.now(), ...payload };
-      setStocks((prev) => {
-        const updated = [newStock, ...prev];
-        window.localStorage.setItem('ssc_admin_stocks', JSON.stringify(updated));
-        return updated;
-      });
-      onSuccess();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStockUpdate = async (id, payload, onSuccess) => {
-    if (!token) return;
-    try {
-      setLoading(true);
-      setStocks((prev) => {
-        const updated = prev.map((stock) => (stock.id === id ? { ...stock, ...payload } : stock));
-        window.localStorage.setItem('ssc_admin_stocks', JSON.stringify(updated));
-        return updated;
-      });
-      onSuccess();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleStockDelete = async (id) => {
-    if (!token) return;
-    if (!window.confirm('Are you sure you want to delete this part?')) return;
-    try {
-      setLoading(true);
-      setStocks((prev) => {
-        const updated = prev.filter((stock) => stock.id !== id);
-        window.localStorage.setItem('ssc_admin_stocks', JSON.stringify(updated));
-        return updated;
-      });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleServiceCenterCreate = async (payload, onSuccess) => {
     if (!token) return;
     try {
       setLoading(true);
       const { serviceCenter } = await createServiceCenter(payload, token);
       setServiceCenters((prev) => [serviceCenter, ...prev]);
-      onSuccess();
+      if (onSuccess) onSuccess();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -357,7 +241,7 @@ export default function App() {
       setServiceCenters((prev) =>
         prev.map((center) => (center.id === id ? serviceCenter : center))
       );
-      onSuccess();
+      if (onSuccess) onSuccess();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -365,7 +249,153 @@ export default function App() {
     }
   };
 
-  // මෙතනදී payments වෙනස් වූ වහාම LocalStorage එකේ ස්ථිරව සේව් වන ලෙස සකසා ඇත
+  // Service CRUD handlers
+  const handleServiceCreate = async (payload, onSuccess) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      const res = await createService(payload, token);
+      const newService = res.service || res;
+      setServices((prev) => [newService, ...prev]);
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleServiceUpdate = async (id, payload, onSuccess) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      const res = await updateService(id, payload, token);
+      const updated = res.service || res;
+      setServices((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleServiceDelete = async (id) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      await deleteService(id, token);
+      setServices((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Stock CRUD handlers
+  const handleStockCreate = async (payload, onSuccess) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      const res = await createStock(payload, token);
+      const newStock = res.stock || res;
+      setStocks((prev) => [newStock, ...prev]);
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStockUpdate = async (id, payload, onSuccess) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      const res = await updateStock(id, payload, token);
+      const updated = res.stock || res;
+      setStocks((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStockDelete = async (id) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      await deleteStock(id, token);
+      setStocks((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Appointment handler
+  const handleAppointmentUpdate = async (id, payload) => {
+    if (!token) return;
+    try {
+      setUpdatingAppointmentId(id);
+      const res = await updateAppointment(id, payload, token);
+      const updated = res.appointment || res;
+      setAppointments((prev) => prev.map((a) => (a.id === id ? updated : a)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUpdatingAppointmentId(null);
+    }
+  };
+
+  // Technician CRUD handlers
+  const handleTechnicianCreate = async (payload, onSuccess) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      const res = await createTechnician(payload, token);
+      const newTech = res.technician || res;
+      setTechnicians((prev) => [newTech, ...prev]);
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTechnicianUpdate = async (id, payload, onSuccess) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      const res = await updateTechnician(id, payload, token);
+      const updated = res.technician || res;
+      setTechnicians((prev) => prev.map((t) => (t.id === id ? updated : t)));
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTechnicianDelete = async (id) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      await deleteTechnician(id, token);
+      setTechnicians((prev) => prev.filter((t) => t.id !== id));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePaymentCreate = async (payload, onSuccess) => {
     if (!token) return;
     try {
@@ -383,7 +413,7 @@ export default function App() {
         return updated;
       });
 
-      onSuccess();
+      if (onSuccess) onSuccess();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -391,23 +421,8 @@ export default function App() {
     }
   };
 
-  const handleUpdate = async (id, payload) => {
-    if (!token) return;
-    try {
-      setUpdatingId(id);
-      const { appointment } = await updateAppointment(id, payload, token);
-      setAppointments((prev) => prev.map((item) => (item.id === id ? appointment : item)));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
   const handleLogout = () => {
     setAuth(null);
-    setAppointments([]);
-    setServices([]);
     setError('');
     window.localStorage.removeItem('ssc_admin_session');
   };
@@ -430,7 +445,7 @@ export default function App() {
       <header className="dashboard-header">
         <div>
           <h1>🚗 Service Center Admin</h1>
-          <p className="muted">Manage services, inventory, and payments</p>
+          <p className="muted">Manage services, inventory, appointments, technicians and payments</p>
         </div>
         <div className="header-actions">
           <div className="user-info">
@@ -456,20 +471,36 @@ export default function App() {
             🛠️ Services
           </button>
         )}
-        {hasPermission(auth.user.role, 'serviceCenters') && (
-          <button
-            className={`tab-button ${activeTab === 'centers' ? 'active' : ''}`}
-            onClick={() => setActiveTab('centers')}
-          >
-            🏢 Service Centers
-          </button>
-        )}
         {hasPermission(auth.user.role, 'stocks') && (
           <button
             className={`tab-button ${activeTab === 'stocks' ? 'active' : ''}`}
             onClick={() => setActiveTab('stocks')}
           >
             📦 Inventory
+          </button>
+        )}
+        {hasPermission(auth.user.role, 'appointments') && (
+          <button
+            className={`tab-button ${activeTab === 'appointments' ? 'active' : ''}`}
+            onClick={() => setActiveTab('appointments')}
+          >
+            📅 Appointments
+          </button>
+        )}
+        {hasPermission(auth.user.role, 'technicians') && (
+          <button
+            className={`tab-button ${activeTab === 'technicians' ? 'active' : ''}`}
+            onClick={() => setActiveTab('technicians')}
+          >
+            👨‍🔧 Technicians
+          </button>
+        )}
+        {hasPermission(auth.user.role, 'serviceCenters') && (
+          <button
+            className={`tab-button ${activeTab === 'centers' ? 'active' : ''}`}
+            onClick={() => setActiveTab('centers')}
+          >
+            🏢 Service Centers
           </button>
         )}
         {hasPermission(auth.user.role, 'payments') && (
@@ -480,28 +511,12 @@ export default function App() {
             💳 Payments
           </button>
         )}
-        {hasPermission(auth.user.role, 'appointments') && (
-          <button
-            className={`tab-button ${activeTab === 'appointments' ? 'active' : ''}`}
-            onClick={() => setActiveTab('appointments')}
-          >
-            📋 Appointments
-          </button>
-        )}
         {hasPermission(auth.user.role, 'customerLoyalty') && (
           <button
             className={`tab-button ${activeTab === 'loyalty' ? 'active' : ''}`}
             onClick={() => setActiveTab('loyalty')}
           >
             🎯 Loyalty
-          </button>
-        )}
-        {hasPermission(auth.user.role, 'technicians') && (
-          <button
-            className={`tab-button ${activeTab === 'technicians' ? 'active' : ''}`}
-            onClick={() => setActiveTab('technicians')}
-          >
-            🔧 Technicians
           </button>
         )}
       </nav>
@@ -519,17 +534,6 @@ export default function App() {
           </ProtectedFeature>
         )}
 
-        {activeTab === 'centers' && (
-          <ProtectedFeature userRole={auth.user.role} feature="serviceCenters">
-            <ServiceCenterManager
-              serviceCenters={serviceCenters}
-              onCreate={handleServiceCenterCreate}
-              onUpdate={handleServiceCenterUpdate}
-              loading={loading}
-            />
-          </ProtectedFeature>
-        )}
-
         {activeTab === 'stocks' && (
           <ProtectedFeature userRole={auth.user.role} feature="stocks">
             <StockManager
@@ -537,6 +541,40 @@ export default function App() {
               onCreate={handleStockCreate}
               onUpdate={handleStockUpdate}
               onDelete={handleStockDelete}
+              loading={loading}
+            />
+          </ProtectedFeature>
+        )}
+
+        {activeTab === 'appointments' && (
+          <ProtectedFeature userRole={auth.user.role} feature="appointments">
+            <AppointmentTable
+              appointments={appointments}
+              onUpdate={handleAppointmentUpdate}
+              updatingId={updatingAppointmentId}
+            />
+          </ProtectedFeature>
+        )}
+
+        {activeTab === 'technicians' && (
+          <ProtectedFeature userRole={auth.user.role} feature="technicians">
+            <TechnicianManager
+              technicians={technicians}
+              serviceCenters={serviceCenters}
+              onCreate={handleTechnicianCreate}
+              onUpdate={handleTechnicianUpdate}
+              onDelete={handleTechnicianDelete}
+              loading={loading}
+            />
+          </ProtectedFeature>
+        )}
+
+        {activeTab === 'centers' && (
+          <ProtectedFeature userRole={auth.user.role} feature="serviceCenters">
+            <ServiceCenterManager
+              serviceCenters={serviceCenters}
+              onCreate={handleServiceCenterCreate}
+              onUpdate={handleServiceCenterUpdate}
               loading={loading}
             />
           </ProtectedFeature>
@@ -554,16 +592,6 @@ export default function App() {
           </ProtectedFeature>
         )}
 
-        {activeTab === 'appointments' && (
-          <ProtectedFeature userRole={auth.user.role} feature="appointments">
-            <AppointmentTable
-              appointments={appointments}
-              onUpdate={handleUpdate}
-              updatingId={updatingId}
-            />
-          </ProtectedFeature>
-        )}
-
         {activeTab === 'loyalty' && (
           <ProtectedFeature userRole={auth.user.role} feature="customerLoyalty">
             <LoyaltyManager
@@ -571,55 +599,6 @@ export default function App() {
               loading={loading}
               onRefresh={loadDashboard}
               token={token}
-            />
-          </ProtectedFeature>
-        )}
-
-        {activeTab === 'technicians' && (
-          <ProtectedFeature userRole={auth.user.role} feature="technicians">
-            <TechnicianManager
-              technicians={technicians}
-              serviceCenters={serviceCenters}
-              loading={loading}
-              onCreate={async (payload, onSuccess) => {
-                if (!token) return;
-                try {
-                  setLoading(true);
-                  const { technician } = await createTechnician(payload, token);
-                  setTechnicians((prev) => [technician, ...prev]);
-                  onSuccess();
-                } catch (err) {
-                  setError(err.message);
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              onUpdate={async (id, payload, onSuccess) => {
-                if (!token) return;
-                try {
-                  setLoading(true);
-                  const { technician } = await updateTechnician(id, payload, token);
-                  setTechnicians((prev) => prev.map((item) => (item.id === id ? technician : item)));
-                  onSuccess();
-                } catch (err) {
-                  setError(err.message);
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              onDelete={async (id) => {
-                if (!token) return;
-                if (!window.confirm('Delete this technician?')) return;
-                try {
-                  setLoading(true);
-                  await deleteTechnician(id, token);
-                  setTechnicians((prev) => prev.filter((item) => item.id !== id));
-                } catch (err) {
-                  setError(err.message);
-                } finally {
-                  setLoading(false);
-                }
-              }}
             />
           </ProtectedFeature>
         )}
