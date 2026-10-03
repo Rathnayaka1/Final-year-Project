@@ -56,4 +56,55 @@ export function fetchCustomerLoyalty(token) {
   return request('/customers/admin/loyalty', { token });
 }
 
+// Service API
+export function fetchServices(token) {
+  return request('/services', { token });
+}
+export function createService(data, token) {
+  return request('/services', { method: 'POST', data, token });
+}
+export function updateService(id, data, token) {
+  return request(`/services/${id}`, { method: 'PATCH', data, token });
+}
+export function deleteService(id, token) {
+  return request(`/services/${id}`, { method: 'DELETE', token });
+}
+
+// Stock API
+export function fetchStocks(token) {
+  return request('/stocks', { token });
+}
+export function createStock(data, token) {
+  return request('/stocks', { method: 'POST', data, token });
+}
+export function updateStock(id, data, token) {
+  return request(`/stocks/${id}`, { method: 'PATCH', data, token });
+}
+export function deleteStock(id, token) {
+  return request(`/stocks/${id}`, { method: 'DELETE', token });
+}
+
+// Appointment API
+export function fetchAppointments(token) {
+  return request('/appointments', { token });
+}
+export function updateAppointment(id, data, token) {
+  return request(`/appointments/${id}`, { method: 'PATCH', data, token });
+}
+
+// Technician API
+export function fetchTechnicians(token) {
+  return request('/technicians', { token });
+}
+export function createTechnician(data, token) {
+  return request('/technicians', { method: 'POST', data, token });
+}
+export function updateTechnician(id, data, token) {
+  return request(`/technicians/${id}`, { method: 'PATCH', data, token });
+}
+export function deleteTechnician(id, token) {
+  return request(`/technicians/${id}`, { method: 'DELETE', token });
+}
+
+
 
