@@ -56,6 +56,22 @@ export function fetchCustomerLoyalty(token) {
   return request('/customers/admin/loyalty', { token });
 }
 
+export function earnLoyaltyPoints(customerId, points, note, token) {
+  return request('/customers/loyalty/add', {
+    method: 'POST',
+    data: { customerId, points, note },
+    token
+  });
+}
+
+export function redeemLoyaltyPoints(customerId, points, note, token) {
+  return request('/customers/loyalty/use', {
+    method: 'POST',
+    data: { customerId, points, note },
+    token
+  });
+}
+
 // Service API
 export function fetchServices(token) {
   return request('/services', { token });

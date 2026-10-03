@@ -1,34 +1,5 @@
 import React from 'react';
-
-// පෝට් අංකය 5001 ලෙස නිවැරදි කර ඇත
-const API_BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || (import.meta.env.DEV ? '/api' : 'http://10.255.111.96:5001/api');
-
-async function submitLoyaltyChange({ token, action, customerId, customerName, points }) {
-  const endpoint = action === 'add' ? '/customers/loyalty/add' : '/customers/loyalty/use';
-
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      customerId,
-      points,
-      note: action === 'add'
-        ? `Admin added ${points} points to ${customerName}`
-        : `Admin redeemed ${points} points for ${customerName}`
-    })
-  });
-
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    throw new Error(payload.error || 'Loyalty request failed');
-  }
-
-  return payload;
-}
+import { earnLoyaltyPoints, redeemLoyaltyPoints } from '../services/api';
 
 // ඩේටා නොමැති විට ක්‍රෑෂ් වීම වැළැක්වීමට customers = [] ලෙස default එකක් දී ඇත
 export default function LoyaltyManager({ customers = [], loading, onRefresh, token }) {
@@ -50,13 +21,12 @@ export default function LoyaltyManager({ customers = [], loading, onRefresh, tok
     }
 
     try {
-      await submitLoyaltyChange({
-        token,
-        action: 'add',
-        customerId: customer.id || customer._id,
-        customerName: customer.name,
-        points: pointsToAdd
-      });
+      await earnLoyaltyPoints(
+        customer.id || customer._id,
+        pointsToAdd,
+        `Admin added ${pointsToAdd} points to ${customer.name}`,
+        token
+      );
 
       await onRefresh?.();
       alert(`Successfully added ${pointsToAdd} points to ${customer.name}.`);
@@ -92,13 +62,12 @@ export default function LoyaltyManager({ customers = [], loading, onRefresh, tok
     }
 
     try {
-      await submitLoyaltyChange({
-        token,
-        action: 'use',
-        customerId: customer.id || customer._id,
-        customerName: customer.name,
-        points: pointsToRedeem
-      });
+      await redeemLoyaltyPoints(
+        customer.id || customer._id,
+        pointsToRedeem,
+        `Admin redeemed ${pointsToRedeem} points for ${customer.name}`,
+        token
+      );
 
       await onRefresh?.();
       alert(`Successfully redeemed ${pointsToRedeem} points for ${customer.name}.`);
