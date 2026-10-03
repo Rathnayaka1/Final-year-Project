@@ -200,7 +200,7 @@ async function addLoyaltyPoints(req, res) {
 }
 
 async function useLoyaltyPoints(req, res) {
-  const { customerId, points: rawPoints, note } = req.body;
+  const { customerId, points: rawPoints, note, pendingEarnedPoints } = req.body;
   const points = Number(rawPoints);
   const transactionNote = note || 'Points redeemed for discount';
 
@@ -224,7 +224,9 @@ async function useLoyaltyPoints(req, res) {
     }
 
     const redeemPoints = Math.floor(points);
-    if ((customer.loyaltyPoints || 0) < redeemPoints) {
+    const totalAvailable = (customer.loyaltyPoints || 0) + Number(pendingEarnedPoints || 0);
+
+    if (totalAvailable < redeemPoints) {
       return res.status(400).json({ error: 'Not enough loyalty points' });
     }
 

@@ -55,14 +55,16 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
       return;
     }
 
-    const availablePoints = Number(selectedCustomer?.loyaltyPoints || 0);
+    const earnedPoints = Math.floor(Number(form.amount || 0) / 1000);
+    const availablePoints = Number(selectedCustomer?.loyaltyPoints || 0) + earnedPoints;
+    
     if (pointsToRedeem <= 0) {
       alert('Please enter points to redeem.');
       return;
     }
 
     if (pointsToRedeem > availablePoints) {
-      alert(`Insufficient points! Customer only has ${availablePoints} points.`);
+      alert(`Insufficient points! Customer only has a total of ${availablePoints} points available to redeem.`);
       return;
     }
 
@@ -76,6 +78,7 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
         body: JSON.stringify({
           customerId: form.customerId,
           points: Number(pointsToRedeem),
+          pendingEarnedPoints: earnedPoints,
           note: `Redeemed ${pointsToRedeem} points for payment discount`
         })
       });
@@ -88,6 +91,13 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
       const discount = data.discountAmount || (pointsToRedeem * 50); 
       setAppliedDiscount(discount);
       setLoyaltyMessage(`Success! Discount of Rs. ${discount} applied.`);
+
+      if (data.loyaltyPoints !== undefined) {
+        setSelectedCustomer(prev => ({
+          ...prev,
+          loyaltyPoints: data.loyaltyPoints
+        }));
+      }
     } catch (error) {
       alert(error.message || 'Failed to redeem loyalty points.');
     }
@@ -342,13 +352,13 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
           {selectedCustomer && (
             <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', margin: '15px 0', border: '1px solid #dee2e6' }}>
               <h4>🎁 Redeem Loyalty Points</h4>
-              <p className="muted small">Available Points for {selectedCustomer.name}: <strong>{selectedCustomer.loyaltyPoints || 0}</strong></p>
+              <p className="muted small">Available Points for {selectedCustomer.name}: <strong>{Math.max(0, (selectedCustomer.loyaltyPoints || 0) + Math.floor(Number(form.amount || 0) / 1000))}</strong></p>
               
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '10px' }}>
                 <input
                   type="number"
                   min="0"
-                  max={selectedCustomer.loyaltyPoints || 0}
+                  max={Math.max(0, (selectedCustomer.loyaltyPoints || 0) + Math.floor(Number(form.amount || 0) / 1000))}
                   value={pointsToRedeem}
                   onChange={(e) => setPointsToRedeem(Number(e.target.value))}
                   placeholder="Points to redeem"
