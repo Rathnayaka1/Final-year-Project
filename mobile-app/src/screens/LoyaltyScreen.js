@@ -25,7 +25,8 @@ export default function LoyaltyScreen() {
     try {
       setLoading(true);
       const data = await getLoyaltySummary(token);
-      setSummary(data);
+      // සර්වර් එකෙන් එන දත්ත structure එක කුමක් වුවත්, ඇප් එක ක්‍රෑෂ් වීම වැළැක්වීමට මෙලෙස ආරක්ෂිතව ලබා ගනී
+      setSummary(data?.data || data || { loyaltyPoints: 0, transactions: [] });
     } catch (err) {
       setError(err.message || 'Failed to load loyalty points');
     } finally {
@@ -49,7 +50,7 @@ export default function LoyaltyScreen() {
       setError('');
       setSuccess('');
       const data = await redeemLoyaltyPoints(points, token, 'Redeemed from mobile app');
-      setSummary(data);
+      setSummary(data?.data || data || { loyaltyPoints: 0, transactions: [] });
       setUsePointsInput('');
       setSuccess('Points redeemed successfully.');
     } catch (err) {
@@ -71,7 +72,7 @@ export default function LoyaltyScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.pointsCard}>
         <Text style={styles.pointsLabel}>Available Loyalty Points</Text>
-        <Text style={styles.pointsValue}>{summary.loyaltyPoints || 0}</Text>
+        <Text style={styles.pointsValue}>{summary?.loyaltyPoints ?? 0}</Text>
         <Text style={styles.pointsHint}>
           Points are added automatically after successful service completion.
         </Text>
@@ -97,18 +98,20 @@ export default function LoyaltyScreen() {
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Recent Transactions</Text>
-        {summary.transactions?.length ? (
-          summary.transactions.map((tx) => (
-            <View key={`${tx.createdAt}-${tx.points}-${tx.type}`} style={styles.txRow}>
+        {summary?.transactions?.length ? (
+          summary.transactions.map((tx, index) => (
+            <View key={`${tx?.createdAt || index}-${tx?.points || 0}-${tx?.type || 'tx'}`} style={styles.txRow}>
               <View>
-                <Text style={styles.txType}>{tx.type === 'earn' ? 'Added Points' : 'Redeemed Points'}</Text>
-                <Text style={styles.txNote}>{tx.note || 'No note'}</Text>
+                <Text style={styles.txType}>{tx?.type === 'earn' ? 'Added Points' : 'Redeemed Points'}</Text>
+                <Text style={styles.txNote}>{tx?.note || 'No note'}</Text>
               </View>
               <View style={styles.txRight}>
-                <Text style={[styles.txPoints, tx.type === 'earn' ? styles.earn : styles.redeem]}>
-                  {tx.type === 'earn' ? '+' : '-'}{tx.points}
+                <Text style={[styles.txPoints, tx?.type === 'earn' ? styles.earn : styles.redeem]}>
+                  {tx?.type === 'earn' ? '+' : '-'}{tx?.points ?? 0}
                 </Text>
-                <Text style={styles.txDate}>{new Date(tx.createdAt).toLocaleDateString()}</Text>
+                <Text style={styles.txDate}>
+                  {tx?.createdAt ? new Date(tx.createdAt).toLocaleDateString() : '-'}
+                </Text>
               </View>
             </View>
           ))
@@ -182,16 +185,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     color: '#1F2937',
     backgroundColor: '#FFFFFF'
-  },
-  primaryButton: {
-    backgroundColor: '#FFA500',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center'
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontWeight: '700'
   },
   secondaryButton: {
     backgroundColor: '#E3F2FD',

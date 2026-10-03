@@ -1,4 +1,3 @@
-
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Customer = require('../models/Customer');
@@ -162,24 +161,32 @@ async function getLoyaltySummary(req, res) {
 }
 
 async function addLoyaltyPoints(req, res) {
-  const points = Number(req.body?.points);
-  const note = req.body?.note || 'Points added by customer';
+  const { customerId, points: rawPoints, note } = req.body;
+  const points = Number(rawPoints);
+  const transactionNote = note || 'Points added by admin';
+
+  if (!customerId) {
+    return res.status(400).json({ error: 'Customer ID is required' });
+  }
 
   if (!Number.isFinite(points) || points <= 0) {
     return res.status(400).json({ error: 'Points must be a positive number' });
   }
 
   try {
-    const customer = await Customer.findById(req.user.sub);
+    const customer = await Customer.findById(customerId);
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
-    customer.loyaltyPoints += Math.floor(points);
+    customer.loyaltyPoints = (customer.loyaltyPoints || 0) + Math.floor(points);
+    if (!customer.loyaltyTransactions) {
+      customer.loyaltyTransactions = [];
+    }
     customer.loyaltyTransactions.push({
       type: 'earn',
       points: Math.floor(points),
-      note
+      note: transactionNote
     });
     await customer.save();
 
@@ -193,15 +200,25 @@ async function addLoyaltyPoints(req, res) {
 }
 
 async function useLoyaltyPoints(req, res) {
-  const points = Number(req.body?.points);
-  const note = req.body?.note || 'Points redeemed by customer';
+  const { customerId, points: rawPoints, note } = req.body;
+  const points = Number(rawPoints);
+  const transactionNote = note || 'Points redeemed for discount';
+
+  if (!customerId) {
+    return res.status(400).json({ error: 'Customer ID is required' });
+  }
 
   if (!Number.isFinite(points) || points <= 0) {
     return res.status(400).json({ error: 'Points must be a positive number' });
   }
 
+  // උපරිම පොයින්ට්ස් 10ක සීමාව (Max 10 points limit validation)
+  if (points > 10) {
+    return res.status(400).json({ error: 'You can only redeem a maximum of 10 points at a time' });
+  }
+
   try {
-    const customer = await Customer.findById(req.user.sub);
+    const customer = await Customer.findById(customerId);
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -211,16 +228,24 @@ async function useLoyaltyPoints(req, res) {
       return res.status(400).json({ error: 'Not enough loyalty points' });
     }
 
+    // 1 point = LKR 50 discount calculation
+    const discountAmount = redeemPoints * 50;
+
     customer.loyaltyPoints -= redeemPoints;
+    if (!customer.loyaltyTransactions) {
+      customer.loyaltyTransactions = [];
+    }
     customer.loyaltyTransactions.push({
       type: 'redeem',
       points: redeemPoints,
-      note
+      note: `${transactionNote} (Discount: LKR ${discountAmount})`
     });
     await customer.save();
 
     return res.status(200).json({
+      success: true,
       loyaltyPoints: customer.loyaltyPoints,
+      discountAmount: discountAmount, // බිල් එකෙන් අඩු කරගැනීමට ෆ්‍රන්ට්-එන්ඩ් එකට යවන ඩිස්කවුන්ට් අගය
       transactions: customer.loyaltyTransactions.slice(-20).reverse()
     });
   } catch (error) {
@@ -272,12 +297,10 @@ async function requestPasswordReset(req, res) {
 
     await OTP.create({ phone, code, expiresAt });
 
-    // In production, send SMS here
     console.log(`Password reset OTP for ${phone}: ${code}`);
 
     return res.status(200).json({ 
       message: 'OTP sent successfully',
-      // For development only - remove in production
       otp: code 
     });
   } catch (error) {
@@ -307,7 +330,6 @@ async function verifyResetOTP(req, res) {
     otpRecord.verified = true;
     await otpRecord.save();
 
-    // Generate a temporary reset token
     const resetToken = jwt.sign(
       { phone, type: 'password_reset' },
       process.env.JWT_SECRET || 'dev-secret',
@@ -350,7 +372,6 @@ async function resetPassword(req, res) {
     customer.passwordHash = passwordHash;
     await customer.save();
 
-    // Clean up used OTP records
     await OTP.deleteMany({ phone: decoded.phone, verified: true });
 
     return res.status(200).json({ message: 'Password reset successfully' });

@@ -1,9 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
 
-export default function PaymentManager({ payments, onCreate, loading }) {
+const API_BASE_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, '') || (import.meta.env.DEV ? '/api' : 'http://10.255.111.96:5000/api');
+
+export default function PaymentManager({ payments, customers = [], onCreate, loading, token }) {
   const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState({
+    customerId: '',
     customerName: '',
     appointmentId: '',
     amount: 0,
@@ -12,15 +15,101 @@ export default function PaymentManager({ payments, onCreate, loading }) {
     description: ''
   });
 
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
+  const [appliedDiscount, setAppliedDiscount] = useState(0);
+  const [loyaltyMessage, setLoyaltyMessage] = useState('');
+
+  const handleCustomerSelect = (e) => {
+    const custId = e.target.value;
+    const found = customers.find(c => (c.id || c._id) === custId);
+    
+    if (found) {
+      setSelectedCustomer(found);
+      setForm(prev => ({
+        ...prev,
+        customerId: found.id || found._id,
+        customerName: found.name
+      }));
+    } else {
+      setSelectedCustomer(null);
+      setForm(prev => ({
+        ...prev,
+        customerId: '',
+        customerName: ''
+      }));
+    }
+    setPointsToRedeem(0);
+    setAppliedDiscount(0);
+    setLoyaltyMessage('');
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleApplyLoyaltyDiscount = async () => {
+    if (!form.customerId) {
+      alert('Please select a customer first.');
+      return;
+    }
+
+    const availablePoints = Number(selectedCustomer?.loyaltyPoints || 0);
+    if (pointsToRedeem <= 0) {
+      alert('Please enter points to redeem.');
+      return;
+    }
+
+    if (pointsToRedeem > availablePoints) {
+      alert(`Insufficient points! Customer only has ${availablePoints} points.`);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/customers/loyalty/use`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || localStorage.getItem('token') || ''}`
+        },
+        body: JSON.stringify({
+          customerId: form.customerId,
+          points: Number(pointsToRedeem),
+          note: `Redeemed ${pointsToRedeem} points for payment discount`
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to redeem loyalty points.');
+      }
+
+      const discount = data.discountAmount || (pointsToRedeem * 50); 
+      setAppliedDiscount(discount);
+      setLoyaltyMessage(`Success! Discount of Rs. ${discount} applied.`);
+    } catch (error) {
+      alert(error.message || 'Failed to redeem loyalty points.');
+    }
+  };
+
+  const finalPayableAmount = Math.max(0, parseFloat(form.amount || 0) - appliedDiscount);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onCreate(form, () => {
+    const finalData = {
+      ...form,
+      amount: finalPayableAmount,
+      subtotal: parseFloat(form.amount || 0),
+      discount: appliedDiscount,
+      description: appliedDiscount > 0 
+        ? `${form.description || ''} (Loyalty Discount: Rs. ${appliedDiscount})`.trim()
+        : form.description
+    };
+
+    onCreate(finalData, () => {
       setForm({
+        customerId: '',
         customerName: '',
         appointmentId: '',
         amount: 0,
@@ -28,6 +117,10 @@ export default function PaymentManager({ payments, onCreate, loading }) {
         status: 'completed',
         description: ''
       });
+      setSelectedCustomer(null);
+      setPointsToRedeem(0);
+      setAppliedDiscount(0);
+      setLoyaltyMessage('');
       setIsCreating(false);
     });
   };
@@ -35,6 +128,7 @@ export default function PaymentManager({ payments, onCreate, loading }) {
   const handleCancel = () => {
     setIsCreating(false);
     setForm({
+      customerId: '',
       customerName: '',
       appointmentId: '',
       amount: 0,
@@ -42,6 +136,10 @@ export default function PaymentManager({ payments, onCreate, loading }) {
       status: 'completed',
       description: ''
     });
+    setSelectedCustomer(null);
+    setPointsToRedeem(0);
+    setAppliedDiscount(0);
+    setLoyaltyMessage('');
   };
 
   const stats = useMemo(() => {
@@ -84,7 +182,18 @@ export default function PaymentManager({ payments, onCreate, loading }) {
 
   const handleDownloadInvoice = (payment) => {
     const doc = new jsPDF();
-    const amount = parseFloat(payment.amount || 0).toFixed(2);
+    
+    let discount = parseFloat(payment.discount || 0);
+    if (discount === 0 && payment.description) {
+      const match = payment.description.match(/Loyalty Discount:\s*Rs\.?\s*([0-9.]+)/i);
+      if (match) {
+        discount = parseFloat(match[1]) || 0;
+      }
+    }
+
+    const finalAmount = parseFloat(payment.amount || 0);
+    const subtotal = parseFloat(payment.subtotal || (finalAmount + discount));
+
     const invoiceNumber = payment.appointmentId || payment.id || `INV-${Date.now()}`;
     const invoiceDate = formatInvoiceDate(payment.createdAt || payment.date);
     const paymentMethod = payment.paymentMethod ? payment.paymentMethod.toUpperCase() : 'N/A';
@@ -113,16 +222,23 @@ export default function PaymentManager({ payments, onCreate, loading }) {
     doc.setFont('helvetica', 'bold');
     doc.text('Payment Summary', 20, 92);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Amount Paid: Rs. ${amount}`, 20, 100);
-    doc.text(`Payment Method: ${paymentMethod}`, 20, 107);
-    doc.text(`Status: ${paymentStatus.toUpperCase()}`, 20, 114);
+    
+    doc.text(`Subtotal: Rs. ${subtotal.toFixed(2)}`, 20, 100);
+    doc.text(`Loyalty Discount: - Rs. ${discount.toFixed(2)}`, 20, 107);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Final Total Paid: Rs. ${finalAmount.toFixed(2)}`, 20, 114);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Payment Method: ${paymentMethod}`, 20, 121);
+    doc.text(`Status: ${paymentStatus.toUpperCase()}`, 20, 128);
 
     const description = payment.description || 'No additional notes provided.';
     const wrappedDescription = doc.splitTextToSize(description, 160);
     doc.setFont('helvetica', 'bold');
-    doc.text('Description', 20, 128);
+    doc.text('Description', 20, 142);
     doc.setFont('helvetica', 'normal');
-    doc.text(wrappedDescription, 20, 136);
+    doc.text(wrappedDescription, 20, 150);
 
     doc.setDrawColor(220, 220, 220);
     doc.line(20, 262, 190, 262);
@@ -169,17 +285,31 @@ export default function PaymentManager({ payments, onCreate, loading }) {
         <form className="service-form" onSubmit={handleSubmit}>
           <div className="form-grid">
             <label>
-              Customer Name
-              <input name="customerName" value={form.customerName} onChange={handleChange} required />
+              Select Customer
+              <select name="customerId" value={form.customerId} onChange={handleCustomerSelect} required style={{ padding: '8px', width: '100%' }}>
+                <option value="">-- Choose Customer --</option>
+                {customers.map((c) => (
+                  <option key={c.id || c._id} value={c.id || c._id}>
+                    {c.name} {c.phone ? `(${c.phone})` : ''}
+                  </option>
+                ))}
+              </select>
             </label>
+
+            <label>
+              Customer Name
+              <input name="customerName" value={form.customerName} readOnly placeholder="Auto-filled from selection" style={{ backgroundColor: '#f1f1f1' }} required />
+            </label>
+
             <label>
               Appointment/Invoice ID
               <input name="appointmentId" value={form.appointmentId} onChange={handleChange} />
             </label>
           </div>
+
           <div className="form-grid">
             <label>
-              Amount (Rs.)
+              Original Amount (Rs.)
               <input
                 name="amount"
                 type="number"
@@ -208,6 +338,39 @@ export default function PaymentManager({ payments, onCreate, loading }) {
               </select>
             </label>
           </div>
+
+          {selectedCustomer && (
+            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', margin: '15px 0', border: '1px solid #dee2e6' }}>
+              <h4>🎁 Redeem Loyalty Points</h4>
+              <p className="muted small">Available Points for {selectedCustomer.name}: <strong>{selectedCustomer.loyaltyPoints || 0}</strong></p>
+              
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '10px' }}>
+                <input
+                  type="number"
+                  min="0"
+                  max={selectedCustomer.loyaltyPoints || 0}
+                  value={pointsToRedeem}
+                  onChange={(e) => setPointsToRedeem(Number(e.target.value))}
+                  placeholder="Points to redeem"
+                  style={{ width: '150px', padding: '8px' }}
+                />
+                <button type="button" className="secondary" onClick={handleApplyLoyaltyDiscount}>
+                  Apply Discount
+                </button>
+              </div>
+              {loyaltyMessage && <p style={{ color: 'green', fontSize: '13px', marginTop: '5px' }}>{loyaltyMessage}</p>}
+              {appliedDiscount > 0 && (
+                <p style={{ color: '#003d82', fontWeight: 'bold', marginTop: '5px' }}>
+                  Discount Deducted: - Rs. {appliedDiscount.toFixed(2)}
+                </p>
+              )}
+            </div>
+          )}
+
+          <div style={{ fontSize: '16px', fontWeight: 'bold', margin: '10px 0', color: '#333' }}>
+            Final Total to Pay: Rs. {finalPayableAmount.toFixed(2)}
+          </div>
+
           <label>
             Description / Notes
             <textarea
@@ -254,7 +417,7 @@ export default function PaymentManager({ payments, onCreate, loading }) {
             {payments.map((payment) => {
               const status = getStatusBadge(payment.status);
               return (
-                <tr key={payment.id}>
+                <tr key={payment.id || payment._id}>
                   <td className="muted small">
                     {payment.createdAt
                       ? new Date(payment.createdAt).toLocaleDateString()

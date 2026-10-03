@@ -21,8 +21,11 @@ router.post('/login', loginCustomer);
 router.get('/profile', authenticate, getProfile);
 router.patch('/profile', authenticate, updateProfile);
 router.get('/loyalty', authenticate, getLoyaltySummary);
-router.post('/loyalty/add', authenticate, addLoyaltyPoints);
-router.post('/loyalty/use', authenticate, useLoyaltyPoints);
+
+// මෙන්න මේ ලයින් දෙක වෙනස් කර ඇත (Admin, Manager සහ Receptionist යන අයට දැන් අවසර ඇත)
+router.post('/loyalty/add', authenticate, requireRole('admin', 'manager', 'receptionist'), addLoyaltyPoints);
+router.post('/loyalty/use', authenticate, requireRole('admin', 'manager', 'receptionist'), useLoyaltyPoints);
+
 router.get('/admin/loyalty', authenticate, requireRole('admin', 'manager', 'receptionist'), listCustomerLoyalty);
 router.post('/forgot-password', requestPasswordReset);
 router.post('/verify-reset-otp', verifyResetOTP);

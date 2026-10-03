@@ -42,43 +42,58 @@ app.use((err, req, res, next) => {
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const DEFAULT_PORT = Number(process.env.PORT || 5001);
 
-async function startServer() {
+function startServer(port = DEFAULT_PORT) {
+  const server = app.listen(port, '0.0.0.0', () => {
+    console.log(`✅ Server is running on port ${port}`);
+  });
+
+  server.on('error', async (error) => {
+    if (error.code === 'EADDRINUSE') {
+      const fallbackPort = port + 1;
+      console.warn(`⚠️ Port ${port} is already in use. Retrying on port ${fallbackPort}.`);
+      startServer(fallbackPort);
+      return;
+    }
+
+    console.error('❌ Server error:', error);
+  });
+
+  // Graceful shutdown handlers
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+  });
+}
+
+async function initializeApp() {
   try {
-    await connectDB();
-    console.log('✅ Database connection established');
-    
-    await bootstrapData();
-    console.log('✅ Bootstrap data completed');
-    
-    const server = app.listen(PORT, '0.0.0.0', () => {
-      console.log(`✅ Server is running on port ${PORT}`);
-    });
-    
-    server.on('error', (error) => {
-      if (error.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${PORT} is already in use. Please free the port or set a different PORT environment variable.`);
-        process.exit(1);
-      } else {
-        console.error('❌ Server error:', error);
-      }
-    });
-    
-    // Graceful shutdown handlers
-    process.on('SIGTERM', () => {
-      console.log('SIGTERM received, shutting down gracefully');
-      server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-      });
-    });
+    const isDbConnected = await connectDB();
+
+    if (isDbConnected) {
+      console.log('✅ Database connection established');
+      await bootstrapData();
+      console.log('✅ Bootstrap data completed');
+    } else {
+      console.warn('⚠️ Skipping database bootstrap because MongoDB is not available yet.');
+    }
+
+    if (!isDbConnected) {
+      console.warn('⚠️ API routes requiring MongoDB will not work until a valid database is configured and running.');
+    }
+
+    startServer();
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
     console.error('Stack trace:', error.stack);
     process.exit(1);
   }
 }
+
 
 // Global error handlers - log but don't crash immediately
 process.on('unhandledRejection', (reason, promise) => {
@@ -92,6 +107,6 @@ process.on('uncaughtException', (error) => {
   // Don't exit - keep the server running for debugging
 });
 
-startServer();
+initializeApp();
 
 module.exports = app;
