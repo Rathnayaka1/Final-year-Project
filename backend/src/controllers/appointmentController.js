@@ -1,6 +1,7 @@
 const Service = require('../models/Service');
 const Customer = require('../models/Customer');
 const Appointment = require('../models/Appointment');
+const Technician = require('../models/Technician');
 const { STATUS, QUEUE_STATUS } = require('../utils/constants');
 
 const allowedStatuses = Object.values(STATUS);
@@ -77,7 +78,8 @@ async function createAppointmentHandler(req, res) {
       vehicleLocation,
       notes,
       customerId,
-      vehicleId
+      vehicleId,
+      technicianId // <-- Added technicianId
     } = req.body || {};
 
     if (!customerName || !serviceCenterId || !serviceId || !preferredDate || !preferredTime) {
@@ -150,6 +152,7 @@ async function createAppointmentHandler(req, res) {
     }
     
     if (vehicleId) appointmentData.vehicle = vehicleId;
+    if (technicianId) appointmentData.technician = technicianId; // <-- Save technician
 
     const appointment = await Appointment.create(appointmentData);
 
@@ -248,18 +251,55 @@ async function updateAppointmentStatusHandler(req, res) {
   }
 
   try {
+    const existing = await Appointment.findById(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
     const update = {};
     if (status) update.status = status;
     if (queueStatus) update.queueStatus = queueStatus;
 
-    const updated = await Appointment.findByIdAndUpdate(id, update, { new: true });
-
-    if (!updated) {
-      return res.status(404).json({ error: 'Appointment not found' });
+    // Auto sync status and queueStatus when queue is moved to serving or completed
+    if (queueStatus === QUEUE_STATUS.SERVING && status !== STATUS.COMPLETED && status !== STATUS.CANCELLED) {
+      update.status = STATUS.IN_PROGRESS;
+    }
+    if (status === STATUS.IN_PROGRESS && !queueStatus) {
+      update.queueStatus = QUEUE_STATUS.SERVING;
+    }
+    if (queueStatus === QUEUE_STATUS.COMPLETED && !status) {
+      update.status = STATUS.COMPLETED;
+    }
+    if (status === STATUS.COMPLETED && !queueStatus) {
+      update.queueStatus = QUEUE_STATUS.COMPLETED;
     }
 
-    if (status === STATUS.COMPLETED) {
+    const effectiveStatus = update.status || existing.status;
+    const effectiveQueueStatus = update.queueStatus || existing.queueStatus;
+
+    // Record startedAt when queue becomes SERVING or status becomes IN_PROGRESS
+    if ((effectiveQueueStatus === QUEUE_STATUS.SERVING || effectiveStatus === STATUS.IN_PROGRESS) && !existing.startedAt) {
+      update.startedAt = new Date();
+    }
+
+    // Record completedAt and calculate actualDuration when COMPLETED
+    if ((effectiveStatus === STATUS.COMPLETED || effectiveQueueStatus === QUEUE_STATUS.COMPLETED) && !existing.completedAt) {
+      const completionDate = new Date();
+      update.completedAt = completionDate;
+
+      const startDate = existing.startedAt || update.startedAt || existing.createdAt || completionDate;
+      const durationMs = completionDate - new Date(startDate);
+      const durationHours = Math.max(0.1, Number((durationMs / (1000 * 60 * 60)).toFixed(2)));
+      update.actualDuration = durationHours;
+    }
+
+    const updated = await Appointment.findByIdAndUpdate(id, update, { new: true });
+
+    if (effectiveStatus === STATUS.COMPLETED && existing.status !== STATUS.COMPLETED) {
       await awardLoyaltyPointsForCompletion(updated);
+      if (updated.technician) {
+        await Technician.findByIdAndUpdate(updated.technician, { $inc: { totalJobs: 1 } });
+      }
     }
 
     return res.status(200).json({ appointment: serializeAppointment(updated) });

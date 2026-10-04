@@ -8,6 +8,7 @@ import ServiceManager from './components/ServiceManager';
 import StockManager from './components/StockManager';
 import AppointmentTable from './components/AppointmentTable';
 import TechnicianManager from './components/TechnicianManager';
+import TechnicianPerformance from './components/TechnicianPerformance';
 
 import { hasPermission, getAccessibleFeatures, getRoleDescription, ROLE_LABELS } from './utils/rolePermissions';
 import {
@@ -519,6 +520,14 @@ export default function App() {
             🎯 Loyalty
           </button>
         )}
+        {hasPermission(auth.user.role, 'technicianPerformance') && (
+          <button
+            className={`tab-button ${activeTab === 'performance' ? 'active' : ''}`}
+            onClick={() => setActiveTab('performance')}
+          >
+            🤖 ML Prediction
+          </button>
+        )}
       </nav>
 
       <div className="tab-content">
@@ -565,6 +574,7 @@ export default function App() {
               onUpdate={handleTechnicianUpdate}
               onDelete={handleTechnicianDelete}
               loading={loading}
+              token={token}
             />
           </ProtectedFeature>
         )}
@@ -600,6 +610,12 @@ export default function App() {
               onRefresh={loadDashboard}
               token={token}
             />
+          </ProtectedFeature>
+        )}
+
+        {activeTab === 'performance' && (
+          <ProtectedFeature userRole={auth.user.role} feature="technicianPerformance">
+            <TechnicianPerformance token={auth?.token} userRole={auth?.user?.role} />
           </ProtectedFeature>
         )}
       </div>

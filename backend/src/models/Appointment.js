@@ -8,6 +8,7 @@ const appointmentSchema = new mongoose.Schema(
     customerEmail: { type: String },
     customerPhone: { type: String },
     serviceCenter: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceCenter', index: true },
+    technician: { type: mongoose.Schema.Types.ObjectId, ref: 'Technician', index: true }, // The assigned technician
     vehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
     service: { type: mongoose.Schema.Types.ObjectId, ref: 'Service', required: true },
     serviceId: { type: String, required: true },
@@ -32,7 +33,9 @@ const appointmentSchema = new mongoose.Schema(
     startedAt: { type: Date },
     completedAt: { type: Date },
     partsReplaced: [{ name: String, cost: Number, quantity: Number }],
-    invoiceUrl: { type: String }
+    invoiceUrl: { type: String },
+    customerRating: { type: Number, min: 1, max: 5 }, // Rating given by customer
+    isSuccessJob: { type: Boolean, default: true } // Usually true unless there's a complaint or very low rating
   },
   { timestamps: true }
 );
