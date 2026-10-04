@@ -55,6 +55,17 @@ export default function AppointmentTable({ appointments, onUpdate, updatingId })
                 <td>
                   {appt.preferredDate}
                   <div className="muted small">{appt.preferredTime}</div>
+                  {appt.startedAt && (
+                    <div className="small" style={{ color: '#0284c7', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>
+                      ▶ Started: {new Date(appt.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
+                  {appt.completedAt && (
+                    <div className="small" style={{ color: '#16a34a', fontSize: '11px', marginTop: '2px', fontWeight: '500' }}>
+                      ✓ Done: {new Date(appt.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {appt.actualDuration !== undefined && appt.actualDuration !== null ? ` (${appt.actualDuration} hrs)` : ''}
+                    </div>
+                  )}
                 </td>
                 <td>
                   {appt.vehicleLocation ? (

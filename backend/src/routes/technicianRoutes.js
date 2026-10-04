@@ -3,11 +3,17 @@ const {
   listTechnicians,
   createTechnician,
   updateTechnician,
-  deleteTechnician
+  deleteTechnician,
+  predictPerformance,
+  getAvailableTechnicians
 } = require('../controllers/technicianController');
 const { authenticate, requireRole } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
+
+// Get active technicians with ML predictions for a service center
+// (Open to authenticated customers to choose a technician)
+router.get('/available', authenticate, getAvailableTechnicians);
 
 // Allow admin, supervisor, and receptionist to view technicians
 router.get('/', authenticate, requireRole('admin', 'supervisor', 'receptionist'), listTechnicians);
@@ -15,5 +21,8 @@ router.get('/', authenticate, requireRole('admin', 'supervisor', 'receptionist')
 router.post('/', authenticate, requireRole('admin', 'supervisor'), createTechnician);
 router.patch('/:id', authenticate, requireRole('admin', 'supervisor'), updateTechnician);
 router.delete('/:id', authenticate, requireRole('admin', 'supervisor'), deleteTechnician);
+
+// Predict a technician's performance level (ML model)
+router.post('/predict-performance', authenticate, requireRole('admin', 'manager', 'supervisor', 'receptionist'), predictPerformance);
 
 module.exports = router;

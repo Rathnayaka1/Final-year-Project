@@ -574,6 +574,7 @@ export default function App() {
               onUpdate={handleTechnicianUpdate}
               onDelete={handleTechnicianDelete}
               loading={loading}
+              token={token}
             />
           </ProtectedFeature>
         )}
@@ -614,7 +615,7 @@ export default function App() {
 
         {activeTab === 'performance' && (
           <ProtectedFeature userRole={auth.user.role} feature="technicianPerformance">
-            <TechnicianPerformance />
+            <TechnicianPerformance token={auth?.token} userRole={auth?.user?.role} />
           </ProtectedFeature>
         )}
       </div>

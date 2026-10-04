@@ -139,3 +139,8 @@ export function updateTechnician(id, data, token) {
 export function deleteTechnician(id, token) {
   return request(`/technicians/${id}`, { method: 'DELETE', token });
 }
+
+// Technician Performance Prediction API
+export function predictPerformance(data, token) {
+  return request('/technicians/predict-performance', { method: 'POST', data, token });
+}
