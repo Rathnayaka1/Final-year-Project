@@ -68,6 +68,15 @@ export async function getServiceCenters() {
   return data.serviceCenters;
 }
 
+// Technicians APIs
+export async function getAvailableTechnicians(centerId, token) {
+  const { data } = await client.get('/technicians/available', {
+    params: { centerId },
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  return data.technicians || [];
+}
+
 // Services APIs
 export async function getServices() {
   const { data } = await client.get('/services');

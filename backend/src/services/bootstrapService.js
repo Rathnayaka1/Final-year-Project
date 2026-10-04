@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Service = require('../models/Service');
 const ServiceCenter = require('../models/ServiceCenter');
+const Technician = require('../models/Technician');
 
 const defaultServices = [
   {
@@ -157,10 +158,78 @@ async function ensureServiceCenters() {
   console.log('Seeded default service centers');
 }
 
+async function ensureTechnicians() {
+  const count = await Technician.countDocuments();
+  if (count > 0) return;
+
+  const centers = await ServiceCenter.find({}).limit(3);
+  const firstCenterId = centers[0]?._id || null;
+  const secondCenterId = centers[1]?._id || firstCenterId;
+
+  const defaultTechnicians = [
+    {
+      name: 'Kasun Perera',
+      phone: '+94771234567',
+      email: 'kasun@servicecenter.dev',
+      specialization: 'Full Body & Washing Specialist',
+      experienceYears: 5,
+      status: 'active',
+      serviceCenter: firstCenterId,
+      skills: ['Full Body', 'Body Wash', 'Interior Cleaning'],
+      totalJobs: 142,
+      averageRating: 4.8,
+      successRate: 98
+    },
+    {
+      name: 'Nimal Fernando',
+      phone: '+94772345678',
+      email: 'nimal@servicecenter.dev',
+      specialization: 'Engine & Mechanical Triage',
+      experienceYears: 7,
+      status: 'active',
+      serviceCenter: firstCenterId,
+      skills: ['Diagnostics', 'Engine Wash', 'Repair'],
+      totalJobs: 210,
+      averageRating: 4.9,
+      successRate: 99
+    },
+    {
+      name: 'Sunera Silva',
+      phone: '+94773456789',
+      email: 'sunera@servicecenter.dev',
+      specialization: 'Interior & Detailing Expert',
+      experienceYears: 3,
+      status: 'active',
+      serviceCenter: secondCenterId,
+      skills: ['Interior Cleaning', 'Polishing', 'Vacuuming'],
+      totalJobs: 85,
+      averageRating: 4.6,
+      successRate: 95
+    },
+    {
+      name: 'Ruwan Kumara',
+      phone: '+94774567890',
+      email: 'ruwan@servicecenter.dev',
+      specialization: 'Express Maintenance & Oil Change',
+      experienceYears: 4,
+      status: 'active',
+      serviceCenter: secondCenterId,
+      skills: ['Express Service', 'Oil Change', 'Filter Replacement'],
+      totalJobs: 115,
+      averageRating: 4.7,
+      successRate: 97
+    }
+  ];
+
+  await Technician.insertMany(defaultTechnicians);
+  console.log('Seeded default 4 technicians');
+}
+
 async function bootstrapData() {
   await ensureAdminUsers();
   await ensureServices();
   await ensureServiceCenters();
+  await ensureTechnicians();
 }
 
 module.exports = {
