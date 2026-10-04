@@ -12,8 +12,7 @@ const { authenticate, requireRole } = require('../middlewares/authMiddleware');
 const router = express.Router();
 
 // Get active technicians with ML predictions for a service center
-// (Open to authenticated customers to choose a technician)
-router.get('/available', authenticate, getAvailableTechnicians);
+router.get('/available', getAvailableTechnicians);
 
 // Allow admin, supervisor, and receptionist to view technicians
 router.get('/', authenticate, requireRole('admin', 'supervisor', 'receptionist'), listTechnicians);
