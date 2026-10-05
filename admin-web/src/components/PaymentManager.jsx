@@ -23,7 +23,7 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
   const handleCustomerSelect = (e) => {
     const custId = e.target.value;
     const found = customers.find(c => (c.id || c._id) === custId);
-    
+
     if (found) {
       setSelectedCustomer(found);
       setForm(prev => ({
@@ -49,22 +49,20 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const MAX_LOYALTY_POINTS = 10;
+
   const handleApplyLoyaltyDiscount = async () => {
     if (!form.customerId) {
       alert('Please select a customer first.');
       return;
     }
 
-    const earnedPoints = Math.floor(Number(form.amount || 0) / 1000);
-    const availablePoints = Number(selectedCustomer?.loyaltyPoints || 0) + earnedPoints;
-    
-    if (pointsToRedeem <= 0) {
-      alert('Please enter points to redeem.');
-      return;
-    }
+    const currentPoints = Math.max(0, Number(selectedCustomer?.loyaltyPoints || 0));
+    const earnedFromBill = Math.floor(Number(form.amount || 0) / 1000);
+    const totalPoints = currentPoints + earnedFromBill;
 
-    if (pointsToRedeem > availablePoints) {
-      alert(`Insufficient points! Customer only has a total of ${availablePoints} points available to redeem.`);
+    if (totalPoints < MAX_LOYALTY_POINTS) {
+      alert(`Customer has ${currentPoints} stored + ${earnedFromBill} from this bill = ${totalPoints} points. Need ${MAX_LOYALTY_POINTS} to unlock discount.`);
       return;
     }
 
@@ -77,9 +75,9 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
         },
         body: JSON.stringify({
           customerId: form.customerId,
-          points: Number(pointsToRedeem),
-          pendingEarnedPoints: earnedPoints,
-          note: `Redeemed ${pointsToRedeem} points for payment discount`
+          points: MAX_LOYALTY_POINTS,
+          pendingEarnedPoints: Math.floor(Number(form.amount || 0) / 1000),
+          note: `Redeemed ${MAX_LOYALTY_POINTS} points for payment discount`
         })
       });
 
@@ -88,7 +86,7 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
         throw new Error(data.error || 'Failed to redeem loyalty points.');
       }
 
-      const discount = data.discountAmount || (pointsToRedeem * 50); 
+      const discount = data.discountAmount || (MAX_LOYALTY_POINTS * 50);
       setAppliedDiscount(discount);
       setLoyaltyMessage(`Success! Discount of Rs. ${discount} applied.`);
 
@@ -112,7 +110,7 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
       amount: finalPayableAmount,
       subtotal: parseFloat(form.amount || 0),
       discount: appliedDiscount,
-      description: appliedDiscount > 0 
+      description: appliedDiscount > 0
         ? `${form.description || ''} (Loyalty Discount: Rs. ${appliedDiscount})`.trim()
         : form.description
     };
@@ -176,7 +174,7 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
   };
 
   const getMethodBadge = (method) => {
-    const badges = {
+    const badges = {   
       cash: '💵 Cash',
       card: '💳 Card',
       online: '🌐 Online',
@@ -192,7 +190,7 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
 
   const handleDownloadInvoice = (payment) => {
     const doc = new jsPDF();
-    
+
     let discount = parseFloat(payment.discount || 0);
     if (discount === 0 && payment.description) {
       const match = payment.description.match(/Loyalty Discount:\s*Rs\.?\s*([0-9.]+)/i);
@@ -232,13 +230,13 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
     doc.setFont('helvetica', 'bold');
     doc.text('Payment Summary', 20, 92);
     doc.setFont('helvetica', 'normal');
-    
+
     doc.text(`Subtotal: Rs. ${subtotal.toFixed(2)}`, 20, 100);
     doc.text(`Loyalty Discount: - Rs. ${discount.toFixed(2)}`, 20, 107);
-    
+
     doc.setFont('helvetica', 'bold');
     doc.text(`Final Total Paid: Rs. ${finalAmount.toFixed(2)}`, 20, 114);
-    
+
     doc.setFont('helvetica', 'normal');
     doc.text(`Payment Method: ${paymentMethod}`, 20, 121);
     doc.text(`Status: ${paymentStatus.toUpperCase()}`, 20, 128);
@@ -349,33 +347,54 @@ export default function PaymentManager({ payments, customers = [], onCreate, loa
             </label>
           </div>
 
-          {selectedCustomer && (
-            <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', margin: '15px 0', border: '1px solid #dee2e6' }}>
-              <h4>🎁 Redeem Loyalty Points</h4>
-              <p className="muted small">Available Points for {selectedCustomer.name}: <strong>{Math.max(0, (selectedCustomer.loyaltyPoints || 0) + Math.floor(Number(form.amount || 0) / 1000))}</strong></p>
-              
-              <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginTop: '10px' }}>
-                <input
-                  type="number"
-                  min="0"
-                  max={Math.max(0, (selectedCustomer.loyaltyPoints || 0) + Math.floor(Number(form.amount || 0) / 1000))}
-                  value={pointsToRedeem}
-                  onChange={(e) => setPointsToRedeem(Number(e.target.value))}
-                  placeholder="Points to redeem"
-                  style={{ width: '150px', padding: '8px' }}
-                />
-                <button type="button" className="secondary" onClick={handleApplyLoyaltyDiscount}>
-                  Apply Discount
-                </button>
-              </div>
-              {loyaltyMessage && <p style={{ color: 'green', fontSize: '13px', marginTop: '5px' }}>{loyaltyMessage}</p>}
-              {appliedDiscount > 0 && (
-                <p style={{ color: '#003d82', fontWeight: 'bold', marginTop: '5px' }}>
-                  Discount Deducted: - Rs. {appliedDiscount.toFixed(2)}
+          {selectedCustomer && (() => {
+            const currentPoints = Math.max(0, Number(selectedCustomer.loyaltyPoints || 0));
+            const earnedFromBill = Math.floor(Number(form.amount || 0) / 1000);
+            const totalPoints = currentPoints + earnedFromBill;
+            const hasMaxPoints = totalPoints >= MAX_LOYALTY_POINTS;
+            return (
+              <div style={{ background: '#f8f9fa', padding: '15px', borderRadius: '8px', margin: '15px 0', border: `1px solid ${hasMaxPoints ? '#28a745' : '#dee2e6'}` }}>
+                <h4>🎁 Loyalty Points</h4>
+
+                <p className="muted small">
+                  Stored points: <strong>{currentPoints}</strong>
+                  {earnedFromBill > 0 && (
+                    <span style={{ color: '#28a745', marginLeft: '6px' }}>+ {earnedFromBill} from this bill</span>
+                  )}
+                  {' '}= <strong>{totalPoints}</strong> / {MAX_LOYALTY_POINTS}
                 </p>
-              )}
-            </div>
-          )}
+
+                {!hasMaxPoints ? (
+                  <p style={{ color: '#888', fontSize: '13px', marginTop: '8px' }}>
+                    ⏳ {MAX_LOYALTY_POINTS - totalPoints} more point{MAX_LOYALTY_POINTS - totalPoints !== 1 ? 's' : ''} needed to unlock a discount.
+                  </p>
+                ) : (
+                  <>
+                    <p style={{ color: '#28a745', fontSize: '13px', marginTop: '8px', fontWeight: 'bold' }}>
+                      🎉 10 points reached! Eligible for a discount on this bill.
+                    </p>
+                    {appliedDiscount === 0 ? (
+                      <button
+                        type="button"
+                        className="secondary"
+                        style={{ marginTop: '10px' }}
+                        onClick={handleApplyLoyaltyDiscount}
+                      >
+                        Apply Discount (Redeem {MAX_LOYALTY_POINTS} Points)
+                      </button>
+                    ) : (
+                      <>
+                        {loyaltyMessage && <p style={{ color: 'green', fontSize: '13px', marginTop: '8px' }}>{loyaltyMessage}</p>}
+                        <p style={{ color: '#003d82', fontWeight: 'bold', marginTop: '5px' }}>
+                          Discount Deducted: - Rs. {appliedDiscount.toFixed(2)}
+                        </p>
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            );
+          })()}
 
           <div style={{ fontSize: '16px', fontWeight: 'bold', margin: '10px 0', color: '#333' }}>
             Final Total to Pay: Rs. {finalPayableAmount.toFixed(2)}

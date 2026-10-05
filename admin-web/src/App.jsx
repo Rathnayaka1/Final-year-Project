@@ -17,6 +17,7 @@ import {
   createServiceCenter,
   updateServiceCenter,
   fetchCustomerLoyalty,
+  earnLoyaltyPoints,
   fetchServices,
   createService,
   updateService,
@@ -213,6 +214,10 @@ export default function App() {
       const result = await loginRequest(credentials);
       setAuth(result);
       window.localStorage.setItem('ssc_admin_session', JSON.stringify(result));
+      // Reset activeTab to new user's first accessible feature
+      const newRole = result?.user?.role;
+      const firstFeature = getAccessibleFeatures(newRole)[0] || 'services';
+      setActiveTab(firstFeature);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -413,6 +418,27 @@ export default function App() {
         window.localStorage.setItem('ssc_admin_payments', JSON.stringify(updated));
         return updated;
       });
+
+      // Earn loyalty points for customer if customerId is selected
+      if (payload.customerId) {
+        const amountForPoints = Number(payload.subtotal || payload.amount || 0);
+        const pointsToAdd = Math.floor(amountForPoints / 1000);
+        
+        if (pointsToAdd > 0 && (!payload.discount || payload.discount === 0)) {
+          try {
+            await earnLoyaltyPoints(
+              payload.customerId,
+              pointsToAdd,
+              `Earned ${pointsToAdd} points from bill payment`,
+              token
+            );
+          } catch (e) {
+            console.warn('Could not auto-add loyalty points:', e);
+          }
+        }
+        // Reload dashboard so loyalty CRUD immediately reflects updated points
+        await loadDashboard();
+      }
 
       if (onSuccess) onSuccess();
     } catch (err) {

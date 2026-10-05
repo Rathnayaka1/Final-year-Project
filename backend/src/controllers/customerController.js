@@ -224,7 +224,9 @@ async function useLoyaltyPoints(req, res) {
     }
 
     const redeemPoints = Math.floor(points);
-    const totalAvailable = (customer.loyaltyPoints || 0) + Number(pendingEarnedPoints || 0);
+    const pendingEarned = Number(pendingEarnedPoints || 0);
+    const currentStored = Math.max(0, customer.loyaltyPoints || 0);
+    const totalAvailable = currentStored + pendingEarned;
 
     if (totalAvailable < redeemPoints) {
       return res.status(400).json({ error: 'Not enough loyalty points' });
@@ -233,7 +235,8 @@ async function useLoyaltyPoints(req, res) {
     // 1 point = LKR 50 discount calculation
     const discountAmount = redeemPoints * 50;
 
-    customer.loyaltyPoints -= redeemPoints;
+    // Calculate updated loyalty points after earning pending bill points and deducting redeemed points
+    customer.loyaltyPoints = Math.max(0, currentStored + pendingEarned - redeemPoints);
     if (!customer.loyaltyTransactions) {
       customer.loyaltyTransactions = [];
     }
@@ -266,7 +269,7 @@ async function listCustomerLoyalty(req, res) {
       name: customer.name,
       email: customer.email,
       phone: customer.phone,
-      loyaltyPoints: customer.loyaltyPoints || 0,
+      loyaltyPoints: Math.max(0, customer.loyaltyPoints || 0),
       transactionCount: customer.loyaltyTransactions?.length || 0,
       transactions: (customer.loyaltyTransactions || []).slice(-5).map(t => ({
         ...t.toObject(),
