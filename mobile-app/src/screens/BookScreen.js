@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuth } from '../context/AuthContext';
-import { bookService, getServices, getNearbyServiceCenters, API_BASE_URL } from '../services/api';
+import { bookService, getServices, getNearbyServiceCenters, getServiceCenters, getAvailableTechnicians, API_BASE_URL } from '../services/api';
 import LocationPicker from '../components/LocationPicker';
 
 const defaultVehicleLocation = {
@@ -26,6 +26,7 @@ const initialBooking = {
   customerPhone: '',
   serviceId: '',
   serviceCenterId: '',
+  technicianId: '',
   preferredDate: '',
   preferredTime: '',
   vehicleLocationLabel: '',
@@ -38,6 +39,7 @@ export default function BookScreen({ navigation }) {
   const { token, user } = useAuth();
   const [services, setServices] = useState([]);
   const [serviceCenters, setServiceCenters] = useState([]);
+  const [technicians, setTechnicians] = useState([]);
   const [bookingForm, setBookingForm] = useState(initialBooking);
   const [bookingResult, setBookingResult] = useState(null);
   const [bookingError, setBookingError] = useState('');
@@ -52,21 +54,26 @@ export default function BookScreen({ navigation }) {
   useEffect(() => {
     async function loadData() {
       try {
-        const [servicesList, centers] = await Promise.all([
+        let [servicesList, centers] = await Promise.all([
           getServices(),
-          getNearbyServiceCenters(6.9271, 79.8612, 50000).catch(() => [])
+          getNearbyServiceCenters(6.9271, 79.8612, 100000).catch(() => [])
         ]);
         
+        if (!centers || centers.length === 0) {
+          centers = await getServiceCenters().catch(() => []);
+        }
+
         setServices(servicesList);
         setServiceCenters(centers);
         
+        const selectedCenterId = centers[0]?.id || centers[0]?._id || '';
         setBookingForm((prev) => ({ 
           ...prev, 
           customerName: prev.customerName || user?.name || '',
           customerEmail: prev.customerEmail || user?.email || '',
           customerPhone: prev.customerPhone || user?.phone || '',
           serviceId: prev.serviceId || servicesList[0]?.id,
-          serviceCenterId: prev.serviceCenterId || centers[0]?.id || centers[0]?._id,
+          serviceCenterId: prev.serviceCenterId || selectedCenterId,
           vehicleLocationLatitude: prev.vehicleLocationLatitude || defaultVehicleLocation.latitude.toString(),
           vehicleLocationLongitude: prev.vehicleLocationLongitude || defaultVehicleLocation.longitude.toString()
         }));
@@ -79,6 +86,28 @@ export default function BookScreen({ navigation }) {
 
     loadData();
   }, [user]);
+
+  useEffect(() => {
+    const centerId = bookingForm.serviceCenterId;
+    if (!centerId) return;
+
+    async function loadTechnicians() {
+      try {
+        const techList = await getAvailableTechnicians(centerId, token).catch(() => []);
+        setTechnicians(techList);
+        if (techList.length > 0) {
+          setBookingForm((prev) => ({
+            ...prev,
+            technicianId: prev.technicianId || techList[0]?.id || techList[0]?._id || ''
+          }));
+        }
+      } catch (e) {
+        console.warn('Failed to load technicians:', e);
+      }
+    }
+
+    loadTechnicians();
+  }, [bookingForm.serviceCenterId, token]);
 
   const selectedService = useMemo(
     () => services.find((svc) => svc.id === bookingForm.serviceId),
@@ -313,6 +342,51 @@ export default function BookScreen({ navigation }) {
         </View>
       ) : (
         <Text style={styles.noDataText}>No service centers available</Text>
+      )}
+
+      <Text style={styles.sectionTitle}>Choose Technician (AI Performance Matched)</Text>
+      {technicians.length > 0 ? (
+        <View style={styles.centerList}>
+          {technicians.map((tech) => {
+            const techId = tech.id || tech._id;
+            const selected = techId === bookingForm.technicianId;
+            const isTop = tech.predictedLevel === 'Excellent' || (tech.averageRating && tech.averageRating >= 4.7);
+
+            return (
+              <Pressable
+                key={techId}
+                style={[styles.centerCard, selected && styles.centerCardActive]}
+                onPress={() => handleFormChange('technicianId', techId)}
+              >
+                <View style={styles.centerHeader}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.centerName, selected && styles.centerNameActive]}>
+                      {tech.name} {isTop ? '🏆' : ''}
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+                      {tech.specialization || 'Service Technician'}
+                    </Text>
+                  </View>
+                  {selected && <Text style={styles.selectedBadge}>✓ Selected</Text>}
+                </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6, gap: 10 }}>
+                  <Text style={{ fontSize: 12, color: '#059669', fontWeight: '600' }}>
+                    ⭐ {tech.averageRating ? Number(tech.averageRating).toFixed(1) : '4.5'} ({tech.totalJobs || 0} jobs)
+                  </Text>
+                  <View style={{ backgroundColor: '#E0F2FE', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    <Text style={{ fontSize: 11, color: '#0284C7', fontWeight: '600' }}>
+                      {tech.predictedLevel || 'Top Performer'}
+                    </Text>
+                  </View>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : (
+        <Text style={{ fontSize: 13, color: '#6B7280', fontStyle: 'italic', marginBottom: 16 }}>
+          Auto-assigned to top available technician
+        </Text>
       )}
 
       <Text style={styles.sectionTitle}>Vehicle location</Text>
