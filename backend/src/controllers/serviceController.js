@@ -62,8 +62,25 @@ async function updateServiceHandler(req, res) {
   }
 }
 
+async function deleteServiceHandler(req, res) {
+  const { id } = req.params;
+
+  try {
+    const service = await Service.findByIdAndDelete(id);
+
+    if (!service) {
+      return res.status(404).json({ error: 'Service not found' });
+    }
+
+    return res.status(200).json({ message: 'Service deleted successfully' });
+  } catch (error) {
+    return res.status(400).json({ error: error.message });
+  }
+}
+
 module.exports = {
   getServices,
   createService: createServiceHandler,
-  updateService: updateServiceHandler
+  updateService: updateServiceHandler,
+  deleteService: deleteServiceHandler
 };
