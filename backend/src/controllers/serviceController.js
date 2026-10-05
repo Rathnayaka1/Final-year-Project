@@ -17,7 +17,7 @@ async function getServices(req, res) {
 }
 
 async function createServiceHandler(req, res) {
-  const { name, description, duration, basePrice } = req.body || {};
+  const { name, description, duration, basePrice, vehicleType } = req.body || {};
 
   if (!name) {
     return res.status(400).json({ error: 'Service name is required' });
@@ -28,7 +28,8 @@ async function createServiceHandler(req, res) {
       name,
       description,
       duration,
-      basePrice
+      basePrice,
+      vehicleType: vehicleType || 'All'
     });
     return res.status(201).json({ service: serializeService(service) });
   } catch (error) {
@@ -38,13 +39,14 @@ async function createServiceHandler(req, res) {
 
 async function updateServiceHandler(req, res) {
   const { id } = req.params;
-  const { name, description, duration, basePrice } = req.body || {};
+  const { name, description, duration, basePrice, vehicleType } = req.body || {};
 
   const updateDoc = {};
   if (name !== undefined) updateDoc.name = name;
   if (description !== undefined) updateDoc.description = description;
   if (duration !== undefined) updateDoc.duration = duration;
   if (basePrice !== undefined) updateDoc.basePrice = basePrice;
+  if (vehicleType !== undefined) updateDoc.vehicleType = vehicleType;
 
   try {
     const service = await Service.findByIdAndUpdate(id, updateDoc, {
