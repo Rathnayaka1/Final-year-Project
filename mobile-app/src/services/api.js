@@ -142,4 +142,33 @@ export async function redeemLoyaltyPoints(points, token, note = '') {
   return data;
 }
 
+// Notifications APIs
+export async function getNotifications(token) {
+  const { data } = await client.get('/notifications', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data.notifications;
+}
+
+export async function getUnreadNotificationCount(token) {
+  const { data } = await client.get('/notifications/unread-count', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data.unreadCount;
+}
+
+export async function markNotificationAsRead(notificationId, token) {
+  const { data } = await client.patch(`/notifications/${notificationId}/read`, {}, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data.notification;
+}
+
+export async function markAllNotificationsAsRead(token) {
+  const { data } = await client.patch('/notifications/read-all', {}, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data;
+}
+
 export { API_BASE_URL };

@@ -15,6 +15,7 @@ const appointmentRoutes = require('./routes/appointmentRoutes');
 const loyaltyRoutes = require('./routes/loyaltyRoutes');
 const stockRoutes = require('./routes/stockRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
@@ -33,6 +34,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/loyalty', loyaltyRoutes);
 app.use('/api/stocks', stockRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

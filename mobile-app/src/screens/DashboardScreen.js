@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,8 +9,10 @@ import {
   Text,
   View
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { getActiveAppointment, getNearbyServiceCenters } from '../services/api';
+import { getActiveAppointment, getNearbyServiceCenters, getUnreadNotificationCount } from '../services/api';
 
 export default function DashboardScreen({ navigation }) {
   const { user, token, logout } = useAuth();
@@ -18,6 +20,7 @@ export default function DashboardScreen({ navigation }) {
   const [nearestCenter, setNearestCenter] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   async function loadDashboardData() {
     try {
@@ -44,6 +47,21 @@ export default function DashboardScreen({ navigation }) {
     setRefreshing(true);
     await loadDashboardData();
   }
+
+  // Refresh unread count when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      async function fetchUnread() {
+        try {
+          const count = await getUnreadNotificationCount(token);
+          setUnreadCount(count || 0);
+        } catch (e) {
+          // silently ignore
+        }
+      }
+      fetchUnread();
+    }, [token])
+  );
 
   function getQueueColor(length) {
     if (length <= 2) return '#10b981';
@@ -74,13 +92,28 @@ export default function DashboardScreen({ navigation }) {
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#003D82" />}
     >
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0] || 'Guest'}</Text>
           <Text style={styles.subtitle}>Let's keep your vehicle in top shape</Text>
         </View>
-        <Pressable onPress={logout} style={styles.logoutButton}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable
+            onPress={() => navigation.navigate('Notifications')}
+            style={styles.bellButton}
+          >
+            <Ionicons name="notifications-outline" size={24} color="#1F2937" />
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </Pressable>
+          <Pressable onPress={logout} style={styles.logoutButton}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </Pressable>
+        </View>
       </View>
 
       {activeAppointment && (
@@ -218,6 +251,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     marginTop: 4
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  bellButton: {
+    padding: 8,
+    position: 'relative'
+  },
+  badge: {
+    position: 'absolute',
+    top: 4,
+    right: 2,
+    backgroundColor: '#EF4444',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700'
   },
   logoutButton: {
     paddingHorizontal: 16,
