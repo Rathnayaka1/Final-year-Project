@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../context/AuthContext';
 import { bookService, getServices, getNearbyServiceCenters, getServiceCenters, getAvailableTechnicians, API_BASE_URL } from '../services/api';
 import LocationPicker from '../components/LocationPicker';
@@ -517,7 +518,16 @@ export default function BookScreen({ navigation }) {
       {bookingResult ? (
         <View style={styles.resultCard}>
           <Text style={styles.resultTitle}>✅ You are booked!</Text>
-          <Text style={styles.resultCode}>{bookingResult.confirmationCode}</Text>
+          <Pressable
+            style={styles.copyButton}
+            onPress={async () => {
+              await Clipboard.setStringAsync(bookingResult.confirmationCode);
+              Alert.alert('📋 Copied!', `${bookingResult.confirmationCode} copied to clipboard.`);
+            }}
+          >
+            <Text style={styles.resultCode}>{bookingResult.confirmationCode}</Text>
+            <Text style={styles.copyHint}>📋 Tap to copy</Text>
+          </Pressable>
           <Text style={styles.resultText}>
             Queue #{bookingResult.queueNumber} · Status {bookingResult.queueStatus}
           </Text>
@@ -694,6 +704,24 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontSize: 20,
     fontWeight: '700'
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderStyle: 'dashed'
+  },
+  copyHint: {
+    color: '#065F46',
+    fontSize: 12,
+    fontWeight: '500'
   },
   resultText: {
     color: '#1F2937',
