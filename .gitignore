@@ -67,3 +67,7 @@ Thumbs.db
 # Mobile App & Docs (Excluded from Web Branch)
 mobile-app/
 *.md
+
+# Local test / scratch scripts
+backend/check_db.js
+backend/test_*.js

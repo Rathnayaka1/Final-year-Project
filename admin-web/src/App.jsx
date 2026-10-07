@@ -31,7 +31,11 @@ import {
   fetchTechnicians,
   createTechnician,
   updateTechnician,
-  deleteTechnician
+  deleteTechnician,
+  fetchPayments,
+  createPaymentRecord,
+  updatePaymentRecord,
+  deletePaymentRecord
 } from './services/api';
 
 export default function App() {
@@ -39,7 +43,7 @@ export default function App() {
     const cached = window.localStorage.getItem('ssc_admin_session');
     return cached ? JSON.parse(cached) : null;
   });
-  
+
   // Initialize active tab based on accessible features
   const [activeTab, setActiveTab] = useState(() => {
     const cached = window.localStorage.getItem('ssc_admin_session');
@@ -51,18 +55,18 @@ export default function App() {
     }
     return 'services';
   });
-  
+
   const [serviceCenters, setServiceCenters] = useState([]);
   const [services, setServices] = useState([]);
   const [stocks, setStocks] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [technicians, setTechnicians] = useState([]);
-  
+
   // Payments සඳහා LocalStorage භාවිතය
   const [payments, setPayments] = useState(() => {
     const savedPayments = window.localStorage.getItem('ssc_admin_payments');
     if (savedPayments) {
-      try { return JSON.parse(savedPayments); } catch (e) {}
+      try { return JSON.parse(savedPayments); } catch (e) { }
     }
     return [
       {
@@ -114,9 +118,9 @@ export default function App() {
     try {
       setLoading(true);
       setError('');
-      
+
       const fetchPromises = [];
-      
+
       if (hasPermission(userRole, 'serviceCenters')) {
         fetchPromises.push(
           fetchServiceCenters(token)
@@ -171,7 +175,7 @@ export default function App() {
             })
         );
       }
-      
+
       if (hasPermission(userRole, 'customerLoyalty')) {
         fetchPromises.push(
           fetchCustomerLoyalty(token)
@@ -182,9 +186,20 @@ export default function App() {
             })
         );
       }
-      
+
+      if (hasPermission(userRole, 'payments')) {
+        fetchPromises.push(
+          fetchPayments(token)
+            .then(res => ({ type: 'payments', data: res.payments || [] }))
+            .catch(err => {
+              console.warn('Could not fetch payments from backend:', err.message);
+              return { type: 'payments', data: null };
+            })
+        );
+      }
+
       const results = await Promise.all(fetchPromises);
-      
+
       results.forEach(result => {
         if (result.type === 'centers') setServiceCenters(result.data);
         if (result.type === 'services') setServices(Array.isArray(result.data) ? result.data : []);
@@ -192,8 +207,12 @@ export default function App() {
         if (result.type === 'appointments') setAppointments(Array.isArray(result.data) ? result.data : []);
         if (result.type === 'technicians') setTechnicians(Array.isArray(result.data) ? result.data : []);
         if (result.type === 'loyalty') setCustomerLoyalty(result.data);
+        if (result.type === 'payments' && Array.isArray(result.data) && result.data.length > 0) {
+          setPayments(result.data);
+          window.localStorage.setItem('ssc_admin_payments', JSON.stringify(result.data));
+        }
       });
-      
+
     } catch (err) {
       setError(err.message);
     } finally {
@@ -406,15 +425,22 @@ export default function App() {
     if (!token) return;
     try {
       setLoading(true);
-      const newPayment = {
-        id: Date.now(),
-        ...payload,
-        createdAt: new Date().toISOString(),
-        date: new Date().toLocaleDateString()
-      };
-      
+      let newPayment;
+      try {
+        const res = await createPaymentRecord(payload, token);
+        newPayment = res.payment || res;
+      } catch (apiErr) {
+        console.warn('Backend payment save failed, using local fallback:', apiErr.message);
+        newPayment = {
+          id: Date.now(),
+          ...payload,
+          createdAt: new Date().toISOString(),
+          date: new Date().toLocaleDateString()
+        };
+      }
+
       setPayments((prev) => {
-        const updated = [newPayment, ...prev];
+        const updated = [newPayment, ...prev.filter(p => (p.id || p._id) !== (newPayment.id || newPayment._id))];
         window.localStorage.setItem('ssc_admin_payments', JSON.stringify(updated));
         return updated;
       });
@@ -423,7 +449,7 @@ export default function App() {
       if (payload.customerId) {
         const amountForPoints = Number(payload.subtotal || payload.amount || 0);
         const pointsToAdd = Math.floor(amountForPoints / 1000);
-        
+
         if (pointsToAdd > 0 && (!payload.discount || payload.discount === 0)) {
           try {
             await earnLoyaltyPoints(
@@ -441,6 +467,45 @@ export default function App() {
       }
 
       if (onSuccess) onSuccess();
+      // Reload dashboard so stock count, appointments and loyalty points are up to date
+      await loadDashboard();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePaymentUpdate = async (id, payload, onSuccess) => {
+    if (!token) return;
+    try {
+      setLoading(true);
+      const res = await updatePaymentRecord(id, payload, token);
+      const updatedPayment = res.payment || res;
+      setPayments((prev) => {
+        const updated = prev.map(p => ((p.id || p._id) === id ? { ...p, ...updatedPayment } : p));
+        window.localStorage.setItem('ssc_admin_payments', JSON.stringify(updated));
+        return updated;
+      });
+      if (onSuccess) onSuccess();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePaymentDelete = async (id) => {
+    if (!token) return;
+    if (!window.confirm('Are you sure you want to delete this payment record?')) return;
+    try {
+      setLoading(true);
+      await deletePaymentRecord(id, token);
+      setPayments((prev) => {
+        const updated = prev.filter(p => (p.id || p._id) !== id);
+        window.localStorage.setItem('ssc_admin_payments', JSON.stringify(updated));
+        return updated;
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -456,7 +521,7 @@ export default function App() {
 
   if (!token) {
     return (
-      <div className="auth-shell"> 
+      <div className="auth-shell">
         <div>
           <h1>Service Center Admin</h1>
           <p>Monitor walk-ins, manage queues, and wrap repairs faster.</p>
@@ -621,9 +686,15 @@ export default function App() {
             <PaymentManager
               payments={payments}
               customers={customerLoyalty}
+              appointments={appointments}
+              stocks={stocks}
+              services={services}
               token={token}
               onCreate={handlePaymentCreate}
+              onUpdate={handlePaymentUpdate}
+              onDelete={handlePaymentDelete}
               loading={loading}
+              userRole={auth.user.role}
             />
           </ProtectedFeature>
         )}

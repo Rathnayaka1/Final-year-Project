@@ -144,3 +144,21 @@ export function deleteTechnician(id, token) {
 export function predictPerformance(data, token) {
   return request('/technicians/predict-performance', { method: 'POST', data, token });
 }
+
+// Payment API
+export function fetchPayments(token) {
+  return request('/payments', { token });
+}
+
+export function createPaymentRecord(data, token) {
+  return request('/payments', { method: 'POST', data, token });
+}
+
+export function updatePaymentRecord(id, data, token) {
+  return request(`/payments/${id}`, { method: 'PATCH', data, token });
+}
+
+export function deletePaymentRecord(id, token) {
+  return request(`/payments/${id}`, { method: 'DELETE', token });
+}
+
