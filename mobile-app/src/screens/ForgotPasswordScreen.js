@@ -10,22 +10,24 @@ import {
   TextInput,
   View
 } from 'react-native';
-import { requestPasswordReset, verifyResetOTP, resetPassword } from '../services/api';
+import { requestPasswordReset, verifyResetAccount, resetPassword } from '../services/api';
 
 export default function ForgotPasswordScreen({ navigation }) {
-  const [step, setStep] = useState(1); // 1: phone, 2: OTP, 3: new password
+  const [step, setStep] = useState(1); // 1: phone, 2: username, 3: new password, 4: success
   const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
+  const [username, setUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [resetToken, setResetToken] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
   const placeholderColor = '#9CA3AF';
 
-  async function handleRequestOTP() {
-    if (!phone.trim()) {
+  async function handleCheckPhone() {
+    const trimmedPhone = phone.trim();
+    if (!trimmedPhone) {
       setError('Phone number is required');
       return;
     }
@@ -33,31 +35,30 @@ export default function ForgotPasswordScreen({ navigation }) {
     try {
       setLoading(true);
       setError('');
-      const response = await requestPasswordReset(phone.trim());
-      setSuccessMessage('OTP sent to your phone');
+      await requestPasswordReset(trimmedPhone);
       setStep(2);
     } catch (err) {
-      setError(err.response?.data?.error || err.message || 'Failed to send OTP');
+      setError(err.response?.data?.error || err.message || 'Failed to find account');
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleVerifyOTP() {
-    if (!otp.trim()) {
-      setError('OTP is required');
+  async function handleVerifyAccount() {
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setError('Username is required');
       return;
     }
 
     try {
       setLoading(true);
       setError('');
-      const response = await verifyResetOTP(phone.trim(), otp.trim());
+      const response = await verifyResetAccount(phone.trim(), trimmedUsername);
       setResetToken(response.resetToken);
-      setSuccessMessage('OTP verified successfully');
       setStep(3);
     } catch (err) {
-      setError(err.response?.data?.error || err.message || 'Invalid OTP');
+      setError(err.response?.data?.error || err.message || 'Verification failed');
     } finally {
       setLoading(false);
     }
@@ -68,12 +69,14 @@ export default function ForgotPasswordScreen({ navigation }) {
       setError('New password is required');
       return;
     }
-
     if (newPassword.length < 6) {
       setError('Password must be at least 6 characters');
       return;
     }
-
+    if (!confirmPassword.trim()) {
+      setError('Please confirm your new password');
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -83,10 +86,7 @@ export default function ForgotPasswordScreen({ navigation }) {
       setLoading(true);
       setError('');
       await resetPassword(resetToken, newPassword);
-      setSuccessMessage('Password reset successfully!');
-      setTimeout(() => {
-        navigation.navigate('Login');
-      }, 2000);
+      setStep(4);
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Failed to reset password');
     } finally {
@@ -101,11 +101,14 @@ export default function ForgotPasswordScreen({ navigation }) {
     >
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Forgot Password</Text>
+          <Text style={styles.title}>
+            {step === 4 ? 'Password Reset Successful' : 'Forgot Password'}
+          </Text>
           <Text style={styles.subtitle}>
-            {step === 1 && 'Enter your phone number to receive OTP'}
-            {step === 2 && 'Enter the OTP sent to your phone'}
-            {step === 3 && 'Create a new password'}
+            {step === 1 && 'Enter your registered phone number to find your account.'}
+            {step === 2 && 'Enter the username associated with this account to verify your identity.'}
+            {step === 3 && 'Create a new password for your account.'}
+            {step === 4 && 'Your password has been updated. You can now login using your new password.'}
           </Text>
         </View>
 
@@ -118,52 +121,61 @@ export default function ForgotPasswordScreen({ navigation }) {
                 keyboardType="phone-pad"
                 style={styles.input}
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(val) => { setPhone(val); setError(''); }}
                 placeholderTextColor={placeholderColor}
                 autoCapitalize="none"
                 editable={!loading}
               />
 
-              <Pressable style={styles.button} onPress={handleRequestOTP} disabled={loading}>
+              <Pressable
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleCheckPhone}
+                disabled={loading}
+              >
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.buttonText}>Send OTP</Text>
+                  <Text style={styles.buttonText}>Continue</Text>
                 )}
               </Pressable>
             </>
           )}
 
-          {/* Step 2: OTP Verification */}
+          {/* Step 2: Username Verification */}
           {step === 2 && (
             <>
-              <Text style={styles.phoneDisplay}>Phone: {phone}</Text>
-              
+              <View style={styles.infoBadge}>
+                <Text style={styles.infoBadgeLabel}>Phone Number</Text>
+                <Text style={styles.infoBadgeValue}>{phone.trim()}</Text>
+              </View>
+
               <TextInput
-                placeholder="Enter 6-digit OTP"
-                keyboardType="number-pad"
+                placeholder="Username"
                 style={styles.input}
-                value={otp}
-                onChangeText={setOtp}
+                value={username}
+                onChangeText={(val) => { setUsername(val); setError(''); }}
                 placeholderTextColor={placeholderColor}
-                maxLength={6}
+                autoCapitalize="none"
                 editable={!loading}
               />
 
-              <Pressable style={styles.button} onPress={handleVerifyOTP} disabled={loading}>
+              <Pressable
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleVerifyAccount}
+                disabled={loading}
+              >
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                  <Text style={styles.buttonText}>Verify OTP</Text>
+                  <Text style={styles.buttonText}>Verify Account</Text>
                 )}
               </Pressable>
 
-              <Pressable 
-                style={styles.resendLink} 
-                onPress={handleRequestOTP}
-                disabled={loading}
+              <Pressable
+                style={styles.secondaryLink}
+                onPress={() => { setStep(1); setError(''); setUsername(''); }}
               >
-                <Text style={styles.resendText}>Resend OTP</Text>
+                <Text style={styles.secondaryLinkText}>Use a different phone number</Text>
               </Pressable>
             </>
           )}
@@ -171,27 +183,47 @@ export default function ForgotPasswordScreen({ navigation }) {
           {/* Step 3: New Password */}
           {step === 3 && (
             <>
-              <TextInput
-                placeholder="New Password"
-                secureTextEntry
-                style={styles.input}
-                value={newPassword}
-                onChangeText={setNewPassword}
-                placeholderTextColor={placeholderColor}
-                editable={!loading}
-              />
+              <View style={styles.passwordWrapper}>
+                <TextInput
+                  placeholder="New Password"
+                  secureTextEntry={!showNewPassword}
+                  style={styles.passwordInput}
+                  value={newPassword}
+                  onChangeText={(val) => { setNewPassword(val); setError(''); }}
+                  placeholderTextColor={placeholderColor}
+                  editable={!loading}
+                />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => setShowNewPassword(!showNewPassword)}
+                >
+                  <Text style={styles.eyeText}>{showNewPassword ? 'Hide' : 'Show'}</Text>
+                </Pressable>
+              </View>
 
-              <TextInput
-                placeholder="Confirm Password"
-                secureTextEntry
-                style={styles.input}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                placeholderTextColor={placeholderColor}
-                editable={!loading}
-              />
+              <View style={styles.passwordWrapper}>
+                <TextInput
+                  placeholder="Confirm Password"
+                  secureTextEntry={!showConfirmPassword}
+                  style={styles.passwordInput}
+                  value={confirmPassword}
+                  onChangeText={(val) => { setConfirmPassword(val); setError(''); }}
+                  placeholderTextColor={placeholderColor}
+                  editable={!loading}
+                />
+                <Pressable
+                  style={styles.eyeButton}
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  <Text style={styles.eyeText}>{showConfirmPassword ? 'Hide' : 'Show'}</Text>
+                </Pressable>
+              </View>
 
-              <Pressable style={styles.button} onPress={handleResetPassword} disabled={loading}>
+              <Pressable
+                style={[styles.button, loading && styles.buttonDisabled]}
+                onPress={handleResetPassword}
+                disabled={loading}
+              >
                 {loading ? (
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
@@ -201,14 +233,28 @@ export default function ForgotPasswordScreen({ navigation }) {
             </>
           )}
 
-          {error ? <Text style={styles.error}>{error}</Text> : null}
-          {successMessage ? <Text style={styles.success}>{successMessage}</Text> : null}
+          {/* Step 4: Success */}
+          {step === 4 && (
+            <View style={styles.successContainer}>
+              <Text style={styles.successIcon}>✓</Text>
+              <Pressable
+                style={styles.button}
+                onPress={() => navigation.navigate('Login')}
+              >
+                <Text style={styles.buttonText}>Back to Login</Text>
+              </Pressable>
+            </View>
+          )}
 
-          <Pressable onPress={() => navigation.navigate('Login')} style={styles.backLink}>
-            <Text style={styles.backLinkText}>
-              Back to <Text style={styles.backLinkBold}>Login</Text>
-            </Text>
-          </Pressable>
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+
+          {step !== 4 && (
+            <Pressable onPress={() => navigation.navigate('Login')} style={styles.backLink}>
+              <Text style={styles.backLinkText}>
+                Back to <Text style={styles.backLinkBold}>Login</Text>
+              </Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -236,16 +282,29 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    color: '#6B7280'
+    color: '#6B7280',
+    lineHeight: 22
   },
   form: {
     gap: 16
   },
-  phoneDisplay: {
-    fontSize: 14,
+  infoBadge: {
+    backgroundColor: '#F0F9FF',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#DBEAFE'
+  },
+  infoBadgeLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2
+  },
+  infoBadgeValue: {
+    fontSize: 15,
     color: '#003D82',
-    fontWeight: '600',
-    marginBottom: 8
+    fontWeight: '600'
   },
   input: {
     backgroundColor: '#FFFFFF',
@@ -257,14 +316,33 @@ const styles = StyleSheet.create({
     borderColor: '#E5E7EB',
     fontSize: 16
   },
+  passwordWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF'
+  },
+  passwordInput: {
+    flex: 1,
+    color: '#1F2937',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    fontSize: 16
+  },
+  eyeButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 16
+  },
+  eyeText: {
+    color: '#0051B3',
+    fontSize: 13,
+    fontWeight: '600'
+  },
   error: {
     color: '#EF4444',
     fontSize: 14
-  },
-  success: {
-    color: '#10B981',
-    fontSize: 14,
-    fontWeight: '600'
   },
   button: {
     backgroundColor: '#FFA500',
@@ -278,19 +356,31 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4
   },
+  buttonDisabled: {
+    opacity: 0.7
+  },
   buttonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700'
   },
-  resendLink: {
+  secondaryLink: {
     alignItems: 'center',
-    marginTop: 8
+    marginTop: 4
   },
-  resendText: {
+  secondaryLinkText: {
     color: '#0051B3',
     fontSize: 14,
     fontWeight: '600'
+  },
+  successContainer: {
+    alignItems: 'center',
+    gap: 24
+  },
+  successIcon: {
+    fontSize: 64,
+    color: '#10B981',
+    fontWeight: '700'
   },
   backLink: {
     alignItems: 'center',

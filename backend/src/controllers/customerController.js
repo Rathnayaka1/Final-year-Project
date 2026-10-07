@@ -1,7 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const Customer = require('../models/Customer');
-const OTP = require('../models/OTP');
 
 const TOKEN_EXPIRY = '30d';
 
@@ -250,7 +249,7 @@ async function useLoyaltyPoints(req, res) {
     return res.status(200).json({
       success: true,
       loyaltyPoints: customer.loyaltyPoints,
-      discountAmount: discountAmount, // බිල් එකෙන් අඩු කරගැනීමට ෆ්‍රන්ට්-එන්ඩ් එකට යවන ඩිස්කවුන්ට් අගය
+      discountAmount: discountAmount,
       transactions: customer.loyaltyTransactions.slice(-20).reverse()
     });
   } catch (error) {
@@ -287,70 +286,63 @@ async function listCustomerLoyalty(req, res) {
   }
 }
 
+// ─── Password Reset (Phone + Username Verification) ────────────────────────
+
 async function requestPasswordReset(req, res) {
   const { phone } = req.body;
 
-  if (!phone) {
+  if (!phone || !phone.trim()) {
     return res.status(400).json({ error: 'Phone number is required' });
   }
 
   try {
-    const customer = await Customer.findOne({ phone });
+    const customer = await Customer.findOne({ phone: phone.trim() });
     if (!customer) {
       return res.status(404).json({ error: 'No account found with this phone number' });
     }
 
-    // Generate 6-digit OTP
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-    await OTP.create({ phone, code, expiresAt });
-
-    console.log(`Password reset OTP for ${phone}: ${code}`);
-
-    return res.status(200).json({ 
-      message: 'OTP sent successfully',
-      otp: code 
-    });
+    // Return only confirmation that the account exists — no sensitive data
+    return res.status(200).json({ message: 'Account found. Please verify your identity.' });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Something went wrong. Please try again later.' });
   }
 }
 
-async function verifyResetOTP(req, res) {
-  const { phone, code } = req.body;
+async function verifyResetAccount(req, res) {
+  const { phone, username } = req.body;
 
-  if (!phone || !code) {
-    return res.status(400).json({ error: 'Phone and OTP code are required' });
+  if (!phone || !phone.trim()) {
+    return res.status(400).json({ error: 'Phone number is required' });
+  }
+
+  if (!username || !username.trim()) {
+    return res.status(400).json({ error: 'Username is required' });
   }
 
   try {
-    const otpRecord = await OTP.findOne({
-      phone,
-      code,
-      verified: false,
-      expiresAt: { $gt: new Date() }
+    // Verify that phone and username belong to the SAME customer
+    const customer = await Customer.findOne({
+      phone: phone.trim(),
+      username: username.trim().toLowerCase()
     });
 
-    if (!otpRecord) {
-      return res.status(400).json({ error: 'Invalid or expired OTP' });
+    if (!customer) {
+      return res.status(400).json({ error: 'The provided account details do not match' });
     }
 
-    otpRecord.verified = true;
-    await otpRecord.save();
-
+    // Generate a short-lived password reset token
     const resetToken = jwt.sign(
-      { phone, type: 'password_reset' },
+      { sub: customer._id, type: 'password_reset' },
       process.env.JWT_SECRET || 'dev-secret',
       { expiresIn: '15m' }
     );
 
-    return res.status(200).json({ 
-      message: 'OTP verified successfully',
-      resetToken 
+    return res.status(200).json({
+      message: 'Account verified successfully',
+      resetToken
     });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Something went wrong. Please try again later.' });
   }
 }
 
@@ -367,12 +359,12 @@ async function resetPassword(req, res) {
 
   try {
     const decoded = jwt.verify(resetToken, process.env.JWT_SECRET || 'dev-secret');
-    
+
     if (decoded.type !== 'password_reset') {
       return res.status(400).json({ error: 'Invalid reset token' });
     }
 
-    const customer = await Customer.findOne({ phone: decoded.phone });
+    const customer = await Customer.findById(decoded.sub);
     if (!customer) {
       return res.status(404).json({ error: 'Customer not found' });
     }
@@ -381,14 +373,12 @@ async function resetPassword(req, res) {
     customer.passwordHash = passwordHash;
     await customer.save();
 
-    await OTP.deleteMany({ phone: decoded.phone, verified: true });
-
     return res.status(200).json({ message: 'Password reset successfully' });
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') {
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: 'Something went wrong. Please try again later.' });
   }
 }
 
@@ -402,6 +392,6 @@ module.exports = {
   useLoyaltyPoints,
   listCustomerLoyalty,
   requestPasswordReset,
-  verifyResetOTP,
+  verifyResetAccount,
   resetPassword
 };
