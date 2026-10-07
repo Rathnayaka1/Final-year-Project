@@ -4,6 +4,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   View
@@ -193,6 +194,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingTop: (StatusBar.currentHeight || 44) + 12,
     paddingBottom: 40
   },
   loadingContainer: {
