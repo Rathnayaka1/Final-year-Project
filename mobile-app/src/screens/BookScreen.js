@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Platform,
@@ -11,6 +12,7 @@ import {
   Alert
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { bookService, getServices, getNearbyServiceCenters, getServiceCenters, getAvailableTechnicians, API_BASE_URL } from '../services/api';
 import LocationPicker from '../components/LocationPicker';
@@ -50,42 +52,48 @@ export default function BookScreen({ navigation }) {
   const [tempDate, setTempDate] = useState(new Date());
   const [tempTime, setTempTime] = useState(new Date());
   const placeholderColor = '#9CA3AF';
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        let [servicesList, centers] = await Promise.all([
-          getServices(),
-          getNearbyServiceCenters(6.9271, 79.8612, 100000).catch(() => [])
-        ]);
-        
-        if (!centers || centers.length === 0) {
-          centers = await getServiceCenters().catch(() => []);
-        }
-
-        setServices(servicesList);
-        setServiceCenters(centers);
-        
-        const selectedCenterId = centers[0]?.id || centers[0]?._id || '';
-        setBookingForm((prev) => ({ 
-          ...prev, 
-          customerName: prev.customerName || user?.name || '',
-          customerEmail: prev.customerEmail || user?.email || '',
-          customerPhone: prev.customerPhone || user?.phone || '',
-          serviceId: prev.serviceId || servicesList[0]?.id,
-          serviceCenterId: prev.serviceCenterId || selectedCenterId,
-          vehicleLocationLatitude: prev.vehicleLocationLatitude || defaultVehicleLocation.latitude.toString(),
-          vehicleLocationLongitude: prev.vehicleLocationLongitude || defaultVehicleLocation.longitude.toString()
-        }));
-      } catch (err) {
-        setBookingError('Unable to load services right now.');
-      } finally {
-        setLoadingServices(false);
+  const loadData = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      let [servicesList, centers] = await Promise.all([
+        getServices(),
+        getNearbyServiceCenters(6.9271, 79.8612, 100000).catch(() => [])
+      ]);
+      
+      if (!centers || centers.length === 0) {
+        centers = await getServiceCenters().catch(() => []);
       }
-    }
 
-    loadData();
+      setServices(servicesList);
+      setServiceCenters(centers);
+      
+      const selectedCenterId = centers[0]?.id || centers[0]?._id || '';
+      setBookingForm((prev) => ({ 
+        ...prev, 
+        customerName: prev.customerName || user?.name || '',
+        customerEmail: prev.customerEmail || user?.email || '',
+        customerPhone: prev.customerPhone || user?.phone || '',
+        serviceId: prev.serviceId || servicesList[0]?.id,
+        serviceCenterId: prev.serviceCenterId || selectedCenterId,
+        vehicleLocationLatitude: prev.vehicleLocationLatitude || defaultVehicleLocation.latitude.toString(),
+        vehicleLocationLongitude: prev.vehicleLocationLongitude || defaultVehicleLocation.longitude.toString()
+      }));
+    } catch (err) {
+      setBookingError('Unable to load services right now.');
+    } finally {
+      setLoadingServices(false);
+      setRefreshing(false);
+    }
   }, [user]);
+
+  // Auto-update: reload services & service centers every time screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   useEffect(() => {
     const centerId = bookingForm.serviceCenterId;
@@ -278,7 +286,12 @@ export default function BookScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.card} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.card}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} tintColor="#003D82" colors={['#003D82']} />}
+    >
       <Text style={styles.sectionTitle}>Choose a service</Text>
       {loadingServices ? (
         <ActivityIndicator color="#003D82" />
