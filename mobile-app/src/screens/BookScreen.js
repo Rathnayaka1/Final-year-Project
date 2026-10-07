@@ -155,19 +155,26 @@ export default function BookScreen({ navigation }) {
           Location = require('expo-location');
         } catch (err) {
           console.warn('expo-location not available:', err);
-          setBookingError('Location service is not available on this device.');
+          Alert.alert('Location Unavailable', 'Location service is not available on this device. Please enter your location manually using the address search.');
           return null;
         }
       }
 
       if (!Location) {
-        setBookingError('Location service is not available on this platform.');
+        Alert.alert('Location Unavailable', 'Location service is not available on this platform. Please enter your location manually using the address search.');
         return null;
       }
 
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
-        setBookingError('Location permission is required. Please enable it in settings.');
+        Alert.alert(
+          'Permission Required',
+          'Location permission is required to capture your vehicle\'s GPS location. Please enable Location permission in your device Settings for Expo Go.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => { try { require('react-native').Linking.openSettings(); } catch(e) {} } }
+          ]
+        );
         return null;
       }
 
@@ -179,6 +186,11 @@ export default function BookScreen({ navigation }) {
         currentPosition.coords.latitude,
         currentPosition.coords.longitude
       );
+
+      Alert.alert(
+        '✅ Location Captured',
+        `Your vehicle location has been updated.\n\nLatitude: ${currentPosition.coords.latitude.toFixed(6)}\nLongitude: ${currentPosition.coords.longitude.toFixed(6)}\nAccuracy: ±${(currentPosition.coords.accuracy || 0).toFixed(1)} meters`
+      );
       
       return {
         accuracy: currentPosition.coords.accuracy || 0,
@@ -186,7 +198,11 @@ export default function BookScreen({ navigation }) {
       };
     } catch (err) {
       console.error('Location error:', err);
-      setBookingError('Unable to get your location. Please try again or enter coordinates manually.');
+      Alert.alert(
+        'Location Error',
+        'Unable to get your location. Please make sure:\n\n• Location/GPS is turned ON in your device settings\n• You are not indoors (GPS signal may be weak)\n\nYou can also use the "Search by address" option below.',
+        [{ text: 'OK' }]
+      );
       return null;
     }
   };
