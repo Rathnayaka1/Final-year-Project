@@ -24,8 +24,8 @@ export default function RegisterScreen({ navigation }) {
   const placeholderColor = '#9CA3AF';
 
   async function handleRegister() {
-    if (!name.trim() || !phone.trim()) {
-      setError('Name and phone number are required');
+    if (!name.trim() || !username.trim() || !phone.trim()) {
+      setError('Name, username and phone number are required');
       return;
     }
 
@@ -76,7 +76,7 @@ export default function RegisterScreen({ navigation }) {
           />
 
           <TextInput
-            placeholder="Username (optional)"
+            placeholder="Username *"
             style={styles.input}
             value={username}
             onChangeText={setUsername}

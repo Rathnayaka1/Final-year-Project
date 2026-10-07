@@ -20,8 +20,8 @@ function toPublicCustomer(customer) {
 async function register(req, res) {
   const { name, email, phone, username, password } = req.body;
 
-  if (!name || !phone) {
-    return res.status(400).json({ error: 'Name and phone are required' });
+  if (!name || !phone || !username) {
+    return res.status(400).json({ error: 'Name, username and phone are required' });
   }
 
   if (!password) {
