@@ -530,9 +530,11 @@ export default function BookScreen({ navigation }) {
         </View>
       ) : null}
 
-      <Pressable style={styles.primaryButton} onPress={handleBook} disabled={submitting || !!bookingResult}>
-        <Text style={styles.primaryButtonLabel}>{submitting ? 'Submitting…' : 'Submit request'}</Text>
-      </Pressable>
+      {!bookingResult && (
+        <Pressable style={styles.primaryButton} onPress={handleBook} disabled={submitting}>
+          <Text style={styles.primaryButtonLabel}>{submitting ? 'Submitting…' : 'Submit request'}</Text>
+        </Pressable>
+      )}
 
       <Text style={styles.meta}>API: {API_BASE_URL}</Text>
     </ScrollView>
