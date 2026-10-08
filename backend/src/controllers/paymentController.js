@@ -1,6 +1,7 @@
 const Payment = require('../models/Payment');
 const Appointment = require('../models/Appointment');
 const Stock = require('../models/Stock');
+const { createNotification } = require('./notificationController');
 
 function serializePayment(doc) {
   const payment = doc.toObject({ versionKey: false });
@@ -73,8 +74,26 @@ async function createPayment(req, res) {
       ? sanitizedLaborItems.reduce((sum, item) => sum + item.cost, 0)
       : (laborCost !== undefined ? parseFloat(laborCost) : 0);
 
+    // Auto-resolve customerId from appointment if not provided
+    let resolvedCustomerId = customerId || null;
+    if (!resolvedCustomerId && appointmentId) {
+      try {
+        const linkedAppointment = await Appointment.findOne({
+          $or: [
+            { confirmationCode: appointmentId.trim().toUpperCase() },
+            { _id: appointmentId.match(/^[0-9a-fA-F]{24}$/) ? appointmentId : null }
+          ]
+        }).select('customer');
+        if (linkedAppointment?.customer) {
+          resolvedCustomerId = linkedAppointment.customer;
+        }
+      } catch (e) {
+        // silently ignore lookup failure
+      }
+    }
+
     const payment = await Payment.create({
-      customerId: customerId || null,
+      customerId: resolvedCustomerId,
       customerName: customerName.trim(),
       appointmentId: (appointmentId || '').trim(),
       serviceName: (serviceName || '').trim(),
@@ -142,6 +161,17 @@ async function createPayment(req, res) {
       } catch (err) {
         console.warn('Could not update appointment on payment:', err.message);
       }
+    }
+
+    // Notify customer about completed payment
+    if (payment.customerId && (payment.status === 'completed')) {
+      createNotification({
+        recipientId: payment.customerId,
+        type: 'general',
+        title: 'Payment Completed',
+        message: `Payment of Rs.${numericAmount.toFixed(2)} for ${payment.serviceName || 'your service'} has been completed. Invoice: ${generatedInvoiceId}`,
+        data: { paymentId: payment._id, invoiceId: generatedInvoiceId, amount: numericAmount }
+      });
     }
 
     return res.status(201).json({ payment: serializePayment(payment) });

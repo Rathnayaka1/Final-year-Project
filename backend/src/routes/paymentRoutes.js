@@ -5,6 +5,7 @@ const {
   updatePayment,
   deletePayment
 } = require('../controllers/paymentController');
+const { generateInvoice, getPaymentByAppointment } = require('../controllers/invoiceController');
 const { authenticate, requireRole } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -13,5 +14,9 @@ router.get('/', authenticate, requireRole('admin', 'manager', 'cashier'), getPay
 router.post('/', authenticate, requireRole('admin', 'manager', 'cashier'), createPayment);
 router.patch('/:id', authenticate, requireRole('admin', 'manager', 'cashier'), updatePayment);
 router.delete('/:id', authenticate, requireRole('admin', 'manager'), deletePayment);
+
+// Invoice & customer-facing routes
+router.get('/by-appointment/:code', authenticate, getPaymentByAppointment);
+router.get('/:id/invoice', authenticate, generateInvoice);
 
 module.exports = router;

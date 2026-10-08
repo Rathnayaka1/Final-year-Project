@@ -13,6 +13,7 @@ import BookScreen from './src/screens/BookScreen';
 import TrackScreen from './src/screens/TrackScreen';
 import AppointmentsScreen from './src/screens/AppointmentsScreen';
 import LoyaltyScreen from './src/screens/LoyaltyScreen';
+import NotificationsScreen from './src/screens/NotificationsScreen';
 
 const Stack = createStackNavigator();
 
@@ -65,6 +66,11 @@ function AppStack() {
         name="Loyalty"
         component={LoyaltyScreen}
         options={{ title: 'Loyalty Points' }}
+      />
+      <Stack.Screen
+        name="Notifications"
+        component={NotificationsScreen}
+        options={{ title: 'Notifications' }}
       />
     </Stack.Navigator>
   );

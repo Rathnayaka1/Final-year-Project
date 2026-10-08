@@ -12,15 +12,15 @@ function resolveApiBaseUrl() {
   const hostUri = Constants.expoConfig?.hostUri;
   const metroHost = hostUri ? hostUri.split(':')[0] : null;
   if (metroHost) {
-    return `http://${metroHost}:5001/api`;
+    return `http://${metroHost}:5004/api`;
   }
 
   // Final local fallbacks for simulators/emulators.
   if (Platform.OS === 'android') {
-    return 'http://10.0.2.2:5001/api';
+    return 'http://10.0.2.2:5004/api';
   }
 
-  return 'http://localhost:5001/api';
+  return 'http://localhost:5004/api';
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
@@ -116,8 +116,8 @@ export async function requestPasswordReset(phone) {
   return data;
 }
 
-export async function verifyResetOTP(phone, code) {
-  const { data } = await client.post('/customers/verify-reset-otp', { phone, code });
+export async function verifyResetAccount(phone, username) {
+  const { data } = await client.post('/customers/verify-reset-account', { phone, username });
   return data;
 }
 
@@ -140,6 +140,47 @@ export async function redeemLoyaltyPoints(points, token, note = '') {
     { headers: { Authorization: `Bearer ${token}` } }
   );
   return data;
+}
+
+// Notifications APIs
+export async function getNotifications(token) {
+  const { data } = await client.get('/notifications', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data.notifications;
+}
+
+export async function getUnreadNotificationCount(token) {
+  const { data } = await client.get('/notifications/unread-count', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data.unreadCount;
+}
+
+export async function markNotificationAsRead(notificationId, token) {
+  const { data } = await client.patch(`/notifications/${notificationId}/read`, {}, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data.notification;
+}
+
+export async function markAllNotificationsAsRead(token) {
+  const { data } = await client.patch('/notifications/read-all', {}, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data;
+}
+
+// Invoice APIs
+export async function getPaymentByAppointment(appointmentCode, token) {
+  const { data } = await client.get(`/payments/by-appointment/${encodeURIComponent(appointmentCode)}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data.payment;
+}
+
+export function getInvoiceDownloadUrl(paymentId) {
+  return `${API_BASE_URL}/payments/${paymentId}/invoice`;
 }
 
 export { API_BASE_URL };

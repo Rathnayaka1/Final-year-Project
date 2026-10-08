@@ -7,8 +7,20 @@ import {
   StyleSheet,
   ActivityIndicator,
   Platform,
-  Alert
+  Alert,
+  Dimensions
 } from 'react-native';
+
+let MapView, Marker;
+if (Platform.OS !== 'web') {
+  try {
+    const Maps = require('react-native-maps');
+    MapView = Maps.default;
+    Marker = Maps.Marker;
+  } catch (e) {
+    console.warn('react-native-maps not available');
+  }
+}
 
 const OPENSTREETMAP_SEARCH_API = 'https://nominatim.openstreetmap.org/search';
 
@@ -27,6 +39,12 @@ export default function LocationPicker({
   const [gpsLoading, setGpsLoading] = useState(false);
   const [accuracy, setAccuracy] = useState(null);
   const debounceTimer = useRef(null);
+  const mapRef = useRef(null);
+
+  const handleMapPress = (e) => {
+    const { latitude: lat, longitude: lng } = e.nativeEvent.coordinate;
+    onLocationSelect(lat, lng);
+  };
 
   const searchAddress = async (query) => {
     if (!query.trim()) {
@@ -39,7 +57,12 @@ export default function LocationPicker({
     debounceTimer.current = setTimeout(async () => {
       try {
         isSearching(true);
-        const response = await fetch(`${OPENSTREETMAP_SEARCH_API}?q=${encodeURIComponent(query)}&limit=5&format=json`);
+        const response = await fetch(`${OPENSTREETMAP_SEARCH_API}?q=${encodeURIComponent(query)}&limit=5&format=json`, {
+          headers: {
+            'User-Agent': 'ServiceCenterMobileApp/1.0',
+            'Accept': 'application/json'
+          }
+        });
         const results = await response.json();
         setSearchResults(results || []);
       } catch (err) {
@@ -85,6 +108,37 @@ export default function LocationPicker({
           </Text>
         </View>
 
+        {/* Interactive Map */}
+        {MapView ? (
+          <View style={styles.mapContainer}>
+            <MapView
+              ref={mapRef}
+              style={styles.map}
+              region={{
+                latitude,
+                longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01
+              }}
+              onPress={handleMapPress}
+              showsUserLocation={true}
+              showsMyLocationButton={false}
+            >
+              <Marker
+                coordinate={{ latitude, longitude }}
+                title="Vehicle Location"
+                description={`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`}
+                pinColor="#FF9800"
+              />
+            </MapView>
+            <Text style={styles.mapHint}>Tap on the map to pick a location</Text>
+          </View>
+        ) : (
+          <View style={styles.mapFallback}>
+            <Text style={styles.mapFallbackText}>🗺️ Map is not available on this platform</Text>
+          </View>
+        )}
+
         <Pressable
           style={[styles.gpsButton, gpsLoading && styles.gpsButtonLoading]}
           onPress={handleUseCurrentLocation}
@@ -107,7 +161,7 @@ export default function LocationPicker({
           <Text style={styles.accuracyText}>Accuracy: ±{accuracy} meters</Text>
         )}
 
-        <Text style={styles.liveLocationHint}>Tap to capture your vehicle's GPS location</Text>
+        <Text style={styles.liveLocationHint}>Tap the button or tap on the map to set location</Text>
       </View>
 
       {/* Address Search - Alternative Method */}
@@ -280,6 +334,34 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
+    fontSize: 13
+  },
+  mapContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E5E7EB'
+  },
+  map: {
+    width: '100%',
+    height: 200
+  },
+  mapHint: {
+    color: '#6B7280',
+    fontSize: 11,
+    textAlign: 'center',
+    paddingVertical: 6,
+    backgroundColor: '#F9FAFB'
+  },
+  mapFallback: {
+    height: 120,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  mapFallbackText: {
+    color: '#9CA3AF',
     fontSize: 13
   }
 });
