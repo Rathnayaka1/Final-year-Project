@@ -2,6 +2,7 @@ const Service = require('../models/Service');
 const Customer = require('../models/Customer');
 const Appointment = require('../models/Appointment');
 const Technician = require('../models/Technician');
+const { createNotification } = require('./notificationController');
 const { STATUS, QUEUE_STATUS } = require('../utils/constants');
 
 const allowedStatuses = Object.values(STATUS);
@@ -161,6 +162,17 @@ async function createAppointmentHandler(req, res) {
       $inc: { currentQueueLength: 1 }
     });
 
+    // Create notification for appointment confirmation
+    if (appointment.customer) {
+      createNotification({
+        recipientId: appointment.customer,
+        type: 'appointment_confirmed',
+        title: 'Appointment Confirmed',
+        message: `Your service appointment (${confirmationCode}) has been confirmed for ${preferredDate} at ${preferredTime}.`,
+        data: { appointmentId: appointment._id, confirmationCode }
+      });
+    }
+
     return res.status(201).json({ appointment: serializeAppointment(appointment) });
   } catch (error) {
     return res.status(400).json({ error: error.message });
@@ -296,10 +308,40 @@ async function updateAppointmentStatusHandler(req, res) {
     const updated = await Appointment.findByIdAndUpdate(id, update, { new: true });
 
     if (effectiveStatus === STATUS.COMPLETED && existing.status !== STATUS.COMPLETED) {
-      await awardLoyaltyPointsForCompletion(updated);
+      const points = await awardLoyaltyPointsForCompletion(updated);
       if (updated.technician) {
         await Technician.findByIdAndUpdate(updated.technician, { $inc: { totalJobs: 1 } });
       }
+      // Notification: Service completed
+      if (updated.customer) {
+        createNotification({
+          recipientId: updated.customer,
+          type: 'service_completed',
+          title: 'Service Completed',
+          message: `Your vehicle service (${updated.confirmationCode}) has been completed. You can pick up your vehicle.`,
+          data: { appointmentId: updated._id }
+        });
+        if (points > 0) {
+          createNotification({
+            recipientId: updated.customer,
+            type: 'general',
+            title: 'Loyalty Points Earned',
+            message: `You earned ${points} loyalty points from your completed service.`,
+            data: { points }
+          });
+        }
+      }
+    }
+
+    // Notification: Service started / in-progress
+    if (effectiveStatus === STATUS.IN_PROGRESS && existing.status !== STATUS.IN_PROGRESS && updated.customer) {
+      createNotification({
+        recipientId: updated.customer,
+        type: 'service_started',
+        title: 'Service In Progress',
+        message: `Your vehicle service (${updated.confirmationCode}) is now in progress.`,
+        data: { appointmentId: updated._id }
+      });
     }
 
     return res.status(200).json({ appointment: serializeAppointment(updated) });

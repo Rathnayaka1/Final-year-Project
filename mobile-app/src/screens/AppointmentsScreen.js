@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -8,14 +10,52 @@ import {
   Text,
   View
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { useAuth } from '../context/AuthContext';
-import { getMyAppointments } from '../services/api';
+import { getMyAppointments, getPaymentByAppointment, getInvoiceDownloadUrl } from '../services/api';
 
 export default function AppointmentsScreen({ navigation }) {
   const { token } = useAuth();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(null);
+
+  async function handleDownloadInvoice(confirmationCode) {
+    setDownloadingInvoice(confirmationCode);
+    try {
+      const payment = await getPaymentByAppointment(confirmationCode, token);
+      if (!payment) {
+        Alert.alert('No Invoice', 'No payment record found for this appointment.');
+        return;
+      }
+      const paymentId = payment.id || payment._id;
+      const url = getInvoiceDownloadUrl(paymentId);
+      const filename = `invoice-${confirmationCode}.pdf`;
+      const fileUri = FileSystem.documentDirectory + filename;
+
+      const result = await FileSystem.downloadAsync(url, fileUri, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (result.status === 200) {
+        const canShare = await Sharing.isAvailableAsync();
+        if (canShare) {
+          await Sharing.shareAsync(result.uri, { mimeType: 'application/pdf', dialogTitle: 'Invoice PDF' });
+        } else {
+          Alert.alert('Downloaded', `Invoice saved to ${filename}`);
+        }
+      } else {
+        Alert.alert('Error', 'Failed to download invoice.');
+      }
+    } catch (error) {
+      console.error('Invoice download error:', error);
+      Alert.alert('Error', 'Could not download invoice. Payment may not exist yet.');
+    } finally {
+      setDownloadingInvoice(null);
+    }
+  }
 
   async function loadAppointments() {
     try {
@@ -210,6 +250,18 @@ export default function AppointmentsScreen({ navigation }) {
                 <Text style={styles.costLabel}>Estimated Cost:</Text>
                 <Text style={styles.costValue}>Rs. {apt.estimatedCost}</Text>
               </View>
+            )}
+
+            {apt.status === 'completed' && (
+              <Pressable
+                style={styles.invoiceButton}
+                onPress={() => handleDownloadInvoice(apt.confirmationCode)}
+                disabled={downloadingInvoice === apt.confirmationCode}
+              >
+                <Text style={styles.invoiceButtonText}>
+                  {downloadingInvoice === apt.confirmationCode ? '⏳ Downloading...' : '📄 Download Invoice'}
+                </Text>
+              </Pressable>
             )}
           </View>
         );
@@ -471,6 +523,18 @@ const styles = StyleSheet.create({
   costValue: {
     fontSize: 16,
     color: '#10b981',
+    fontWeight: '700'
+  },
+  invoiceButton: {
+    marginTop: 12,
+    backgroundColor: '#003D82',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center'
+  },
+  invoiceButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
     fontWeight: '700'
   }
 });

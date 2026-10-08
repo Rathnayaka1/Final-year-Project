@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Platform,
@@ -11,6 +12,8 @@ import {
   Alert
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Clipboard from 'expo-clipboard';
 import { useAuth } from '../context/AuthContext';
 import { bookService, getServices, getNearbyServiceCenters, getServiceCenters, getAvailableTechnicians, API_BASE_URL } from '../services/api';
 import LocationPicker from '../components/LocationPicker';
@@ -50,42 +53,48 @@ export default function BookScreen({ navigation }) {
   const [tempDate, setTempDate] = useState(new Date());
   const [tempTime, setTempTime] = useState(new Date());
   const placeholderColor = '#9CA3AF';
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        let [servicesList, centers] = await Promise.all([
-          getServices(),
-          getNearbyServiceCenters(6.9271, 79.8612, 100000).catch(() => [])
-        ]);
-        
-        if (!centers || centers.length === 0) {
-          centers = await getServiceCenters().catch(() => []);
-        }
-
-        setServices(servicesList);
-        setServiceCenters(centers);
-        
-        const selectedCenterId = centers[0]?.id || centers[0]?._id || '';
-        setBookingForm((prev) => ({ 
-          ...prev, 
-          customerName: prev.customerName || user?.name || '',
-          customerEmail: prev.customerEmail || user?.email || '',
-          customerPhone: prev.customerPhone || user?.phone || '',
-          serviceId: prev.serviceId || servicesList[0]?.id,
-          serviceCenterId: prev.serviceCenterId || selectedCenterId,
-          vehicleLocationLatitude: prev.vehicleLocationLatitude || defaultVehicleLocation.latitude.toString(),
-          vehicleLocationLongitude: prev.vehicleLocationLongitude || defaultVehicleLocation.longitude.toString()
-        }));
-      } catch (err) {
-        setBookingError('Unable to load services right now.');
-      } finally {
-        setLoadingServices(false);
+  const loadData = useCallback(async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true);
+      let [servicesList, centers] = await Promise.all([
+        getServices(),
+        getNearbyServiceCenters(6.9271, 79.8612, 100000).catch(() => [])
+      ]);
+      
+      if (!centers || centers.length === 0) {
+        centers = await getServiceCenters().catch(() => []);
       }
-    }
 
-    loadData();
+      setServices(servicesList);
+      setServiceCenters(centers);
+      
+      const selectedCenterId = centers[0]?.id || centers[0]?._id || '';
+      setBookingForm((prev) => ({ 
+        ...prev, 
+        customerName: prev.customerName || user?.name || '',
+        customerEmail: prev.customerEmail || user?.email || '',
+        customerPhone: prev.customerPhone || user?.phone || '',
+        serviceId: prev.serviceId || servicesList[0]?.id,
+        serviceCenterId: prev.serviceCenterId || selectedCenterId,
+        vehicleLocationLatitude: prev.vehicleLocationLatitude || defaultVehicleLocation.latitude.toString(),
+        vehicleLocationLongitude: prev.vehicleLocationLongitude || defaultVehicleLocation.longitude.toString()
+      }));
+    } catch (err) {
+      setBookingError('Unable to load services right now.');
+    } finally {
+      setLoadingServices(false);
+      setRefreshing(false);
+    }
   }, [user]);
+
+  // Auto-update: reload services & service centers every time screen gains focus
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   useEffect(() => {
     const centerId = bookingForm.serviceCenterId;
@@ -147,19 +156,26 @@ export default function BookScreen({ navigation }) {
           Location = require('expo-location');
         } catch (err) {
           console.warn('expo-location not available:', err);
-          setBookingError('Location service is not available on this device.');
+          Alert.alert('Location Unavailable', 'Location service is not available on this device. Please enter your location manually using the address search.');
           return null;
         }
       }
 
       if (!Location) {
-        setBookingError('Location service is not available on this platform.');
+        Alert.alert('Location Unavailable', 'Location service is not available on this platform. Please enter your location manually using the address search.');
         return null;
       }
 
       const permission = await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
-        setBookingError('Location permission is required. Please enable it in settings.');
+        Alert.alert(
+          'Permission Required',
+          'Location permission is required to capture your vehicle\'s GPS location. Please enable Location permission in your device Settings for Expo Go.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => { try { require('react-native').Linking.openSettings(); } catch(e) {} } }
+          ]
+        );
         return null;
       }
 
@@ -171,6 +187,11 @@ export default function BookScreen({ navigation }) {
         currentPosition.coords.latitude,
         currentPosition.coords.longitude
       );
+
+      Alert.alert(
+        '✅ Location Captured',
+        `Your vehicle location has been updated.\n\nLatitude: ${currentPosition.coords.latitude.toFixed(6)}\nLongitude: ${currentPosition.coords.longitude.toFixed(6)}\nAccuracy: ±${(currentPosition.coords.accuracy || 0).toFixed(1)} meters`
+      );
       
       return {
         accuracy: currentPosition.coords.accuracy || 0,
@@ -178,7 +199,11 @@ export default function BookScreen({ navigation }) {
       };
     } catch (err) {
       console.error('Location error:', err);
-      setBookingError('Unable to get your location. Please try again or enter coordinates manually.');
+      Alert.alert(
+        'Location Error',
+        'Unable to get your location. Please make sure:\n\n• Location/GPS is turned ON in your device settings\n• You are not indoors (GPS signal may be weak)\n\nYou can also use the "Search by address" option below.',
+        [{ text: 'OK' }]
+      );
       return null;
     }
   };
@@ -278,7 +303,12 @@ export default function BookScreen({ navigation }) {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.card} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.card}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadData(true)} tintColor="#003D82" colors={['#003D82']} />}
+    >
       <Text style={styles.sectionTitle}>Choose a service</Text>
       {loadingServices ? (
         <ActivityIndicator color="#003D82" />
@@ -488,7 +518,16 @@ export default function BookScreen({ navigation }) {
       {bookingResult ? (
         <View style={styles.resultCard}>
           <Text style={styles.resultTitle}>✅ You are booked!</Text>
-          <Text style={styles.resultCode}>{bookingResult.confirmationCode}</Text>
+          <Pressable
+            style={styles.copyButton}
+            onPress={async () => {
+              await Clipboard.setStringAsync(bookingResult.confirmationCode);
+              Alert.alert('📋 Copied!', `${bookingResult.confirmationCode} copied to clipboard.`);
+            }}
+          >
+            <Text style={styles.resultCode}>{bookingResult.confirmationCode}</Text>
+            <Text style={styles.copyHint}>📋 Tap to copy</Text>
+          </Pressable>
           <Text style={styles.resultText}>
             Queue #{bookingResult.queueNumber} · Status {bookingResult.queueStatus}
           </Text>
@@ -501,9 +540,11 @@ export default function BookScreen({ navigation }) {
         </View>
       ) : null}
 
-      <Pressable style={styles.primaryButton} onPress={handleBook} disabled={submitting || !!bookingResult}>
-        <Text style={styles.primaryButtonLabel}>{submitting ? 'Submitting…' : 'Submit request'}</Text>
-      </Pressable>
+      {!bookingResult && (
+        <Pressable style={styles.primaryButton} onPress={handleBook} disabled={submitting}>
+          <Text style={styles.primaryButtonLabel}>{submitting ? 'Submitting…' : 'Submit request'}</Text>
+        </Pressable>
+      )}
 
       <Text style={styles.meta}>API: {API_BASE_URL}</Text>
     </ScrollView>
@@ -663,6 +704,24 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
     fontSize: 20,
     fontWeight: '700'
+  },
+  copyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderStyle: 'dashed'
+  },
+  copyHint: {
+    color: '#065F46',
+    fontSize: 12,
+    fontWeight: '500'
   },
   resultText: {
     color: '#1F2937',

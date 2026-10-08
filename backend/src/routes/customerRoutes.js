@@ -9,7 +9,7 @@ const {
   useLoyaltyPoints,
   listCustomerLoyalty,
   requestPasswordReset,
-  verifyResetOTP,
+  verifyResetAccount,
   resetPassword
 } = require('../controllers/customerController');
 const { authenticate, requireAdmin, requireRole } = require('../middlewares/authMiddleware');
@@ -28,7 +28,7 @@ router.post('/loyalty/use', authenticate, requireRole('admin', 'manager', 'recep
 
 router.get('/admin/loyalty', authenticate, requireRole('admin', 'manager', 'receptionist'), listCustomerLoyalty);
 router.post('/forgot-password', requestPasswordReset);
-router.post('/verify-reset-otp', verifyResetOTP);
+router.post('/verify-reset-account', verifyResetAccount);
 router.post('/reset-password', resetPassword);
 
 module.exports = router;
