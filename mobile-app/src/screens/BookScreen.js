@@ -62,17 +62,17 @@ export default function BookScreen({ navigation }) {
         getServices(),
         getNearbyServiceCenters(6.9271, 79.8612, 100000).catch(() => [])
       ]);
-      
+
       if (!centers || centers.length === 0) {
         centers = await getServiceCenters().catch(() => []);
       }
 
       setServices(servicesList);
       setServiceCenters(centers);
-      
+
       const selectedCenterId = centers[0]?.id || centers[0]?._id || '';
-      setBookingForm((prev) => ({ 
-        ...prev, 
+      setBookingForm((prev) => ({
+        ...prev,
         customerName: prev.customerName || user?.name || '',
         customerEmail: prev.customerEmail || user?.email || '',
         customerPhone: prev.customerPhone || user?.phone || '',
@@ -148,7 +148,7 @@ export default function BookScreen({ navigation }) {
   const handleUseCurrentLocation = async () => {
     try {
       setBookingError('');
-      
+
       // Dynamically require expo-location only on native platforms
       let Location = null;
       if (Platform.OS !== 'web') {
@@ -173,7 +173,7 @@ export default function BookScreen({ navigation }) {
           'Location permission is required to capture your vehicle\'s GPS location. Please enable Location permission in your device Settings for Expo Go.',
           [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Open Settings', onPress: () => { try { require('react-native').Linking.openSettings(); } catch(e) {} } }
+            { text: 'Open Settings', onPress: () => { try { require('react-native').Linking.openSettings(); } catch (e) { } } }
           ]
         );
         return null;
@@ -182,7 +182,7 @@ export default function BookScreen({ navigation }) {
       const currentPosition = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced
       });
-      
+
       handleLocationSelect(
         currentPosition.coords.latitude,
         currentPosition.coords.longitude
@@ -192,7 +192,7 @@ export default function BookScreen({ navigation }) {
         '✅ Location Captured',
         `Your vehicle location has been updated.\n\nLatitude: ${currentPosition.coords.latitude.toFixed(6)}\nLongitude: ${currentPosition.coords.longitude.toFixed(6)}\nAccuracy: ±${(currentPosition.coords.accuracy || 0).toFixed(1)} meters`
       );
-      
+
       return {
         accuracy: currentPosition.coords.accuracy || 0,
         altitude: currentPosition.coords.altitude
@@ -457,13 +457,13 @@ export default function BookScreen({ navigation }) {
 
       <Text style={styles.sectionTitle}>Preferred slot</Text>
       <View style={styles.row}>
-        <Pressable 
+        <Pressable
           style={[styles.pickerButton, styles.rowInput]}
           onPress={() => setShowDatePicker(true)}
         >
           <Text style={styles.pickerButtonText}>📅 {formatDateForDisplay(bookingForm.preferredDate)}</Text>
         </Pressable>
-        <Pressable 
+        <Pressable
           style={[styles.pickerButton, styles.rowInput]}
           onPress={() => setShowTimePicker(true)}
         >
@@ -531,8 +531,8 @@ export default function BookScreen({ navigation }) {
           <Text style={styles.resultText}>
             Queue #{bookingResult.queueNumber} · Status {bookingResult.queueStatus}
           </Text>
-          <Pressable 
-            style={styles.viewAppointmentsButton} 
+          <Pressable
+            style={styles.viewAppointmentsButton}
             onPress={() => navigation.navigate('Appointments')}
           >
             <Text style={styles.viewAppointmentsButtonText}>View My Appointments</Text>
