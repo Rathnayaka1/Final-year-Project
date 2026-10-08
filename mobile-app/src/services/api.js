@@ -171,4 +171,16 @@ export async function markAllNotificationsAsRead(token) {
   return data;
 }
 
+// Invoice APIs
+export async function getPaymentByAppointment(appointmentCode, token) {
+  const { data } = await client.get(`/payments/by-appointment/${encodeURIComponent(appointmentCode)}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return data.payment;
+}
+
+export function getInvoiceDownloadUrl(paymentId) {
+  return `${API_BASE_URL}/payments/${paymentId}/invoice`;
+}
+
 export { API_BASE_URL };

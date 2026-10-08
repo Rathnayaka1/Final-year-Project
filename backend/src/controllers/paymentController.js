@@ -1,6 +1,7 @@
 const Payment = require('../models/Payment');
 const Appointment = require('../models/Appointment');
 const Stock = require('../models/Stock');
+const { createNotification } = require('./notificationController');
 
 function serializePayment(doc) {
   const payment = doc.toObject({ versionKey: false });
@@ -142,6 +143,17 @@ async function createPayment(req, res) {
       } catch (err) {
         console.warn('Could not update appointment on payment:', err.message);
       }
+    }
+
+    // Notify customer about completed payment
+    if (payment.customerId && (payment.status === 'completed')) {
+      createNotification({
+        recipientId: payment.customerId,
+        type: 'general',
+        title: 'Payment Completed',
+        message: `Payment of Rs.${finalAmount.toFixed(2)} for ${payment.serviceName || 'your service'} has been completed. Invoice: ${generatedInvoiceId}`,
+        data: { paymentId: payment._id, invoiceId: generatedInvoiceId, amount: finalAmount }
+      });
     }
 
     return res.status(201).json({ payment: serializePayment(payment) });
