@@ -39,7 +39,7 @@ function calculateLoyaltyPoints(appointment) {
     return 1;
   }
 
-  return Math.max(1, Math.floor(billAmount / 100));
+  return Math.max(1, Math.floor(billAmount / 1000));
 }
 
 async function awardLoyaltyPointsForCompletion(appointment) {
