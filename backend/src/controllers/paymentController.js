@@ -1,6 +1,7 @@
 const Payment = require('../models/Payment');
 const Appointment = require('../models/Appointment');
 const Stock = require('../models/Stock');
+const Notification = require('../models/Notification');
 
 function serializePayment(doc) {
   const payment = doc.toObject({ versionKey: false });
@@ -36,7 +37,9 @@ async function createPayment(req, res) {
       paymentMethod,
       status,
       description,
-      invoiceId
+      invoiceId,
+      nextServiceDate,
+      nextServiceMileage
     } = req.body || {};
 
     if (!customerName) {
@@ -90,6 +93,8 @@ async function createPayment(req, res) {
       status: status || 'completed',
       description: (description || '').trim(),
       invoiceId: generatedInvoiceId,
+      nextServiceDate: (nextServiceDate || '').trim(),
+      nextServiceMileage: parseFloat(nextServiceMileage) || 0,
       date: new Date().toLocaleDateString()
     });
 
@@ -144,9 +149,120 @@ async function createPayment(req, res) {
       }
     }
 
+    // Generate in-app customer notification for completed service with next service date
+    if (customerId && (status === 'completed' || !status)) {
+      try {
+        const nextDateText = (nextServiceDate || '').trim();
+        const mileageVal = parseFloat(nextServiceMileage) || 0;
+        const mileageText = mileageVal > 0 ? ` (at ${mileageVal.toLocaleString()} km)` : '';
+        const reminderMsg = nextDateText
+          ? ` Recommended next service: ${nextDateText}${mileageText}.`
+          : '';
+
+        await Notification.create({
+          recipient: customerId,
+          recipientModel: 'Customer',
+          type: 'service_completed',
+          title: '🚗 Service Completed & Invoice Ready',
+          message: `Your payment of Rs. ${numericAmount.toFixed(2)} for ${serviceName || 'Automotive Service'} has been confirmed.${reminderMsg}`,
+          data: {
+            paymentId: payment._id,
+            invoiceId: generatedInvoiceId,
+            nextServiceDate: nextDateText,
+            nextServiceMileage: mileageVal,
+            amount: numericAmount
+          }
+        });
+      } catch (notifErr) {
+        console.warn('Could not generate service completed notification:', notifErr.message);
+      }
+    }
+
     return res.status(201).json({ payment: serializePayment(payment) });
   } catch (error) {
     return res.status(500).json({ error: error.message });
+  }
+}
+
+// Get upcoming due service reminders (within next 7 days)
+async function getDueServiceReminders(req, res) {
+  try {
+    const today = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(today.getDate() + 7);
+
+    const todayStr = today.toISOString().split('T')[0];
+    const futureStr = futureDate.toISOString().split('T')[0];
+
+    const duePayments = await Payment.find({
+      customerId: { $ne: null },
+      nextServiceDate: { $gte: todayStr, $lte: futureStr }
+    }).sort({ nextServiceDate: 1 });
+
+    return res.status(200).json({
+      duePayments: duePayments.map(serializePayment),
+      range: { start: todayStr, end: futureStr }
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+// Check and trigger reminder notifications for upcoming services
+async function checkAndSendServiceReminders(req, res) {
+  try {
+    const today = new Date();
+    const futureDate = new Date();
+    futureDate.setDate(today.getDate() + 7);
+
+    const todayStr = today.toISOString().split('T')[0];
+    const futureStr = futureDate.toISOString().split('T')[0];
+
+    const duePayments = await Payment.find({
+      customerId: { $ne: null },
+      nextServiceDate: { $gte: todayStr, $lte: futureStr }
+    });
+
+    let sentCount = 0;
+    for (const p of duePayments) {
+      const alreadySent = await Notification.findOne({
+        recipient: p.customerId,
+        type: 'appointment_reminder',
+        'data.nextServiceDate': p.nextServiceDate
+      });
+
+      if (!alreadySent) {
+        const mileageVal = p.nextServiceMileage || 0;
+        const mileageText = mileageVal > 0 ? ` (Target: ${mileageVal.toLocaleString()} km)` : '';
+
+        await Notification.create({
+          recipient: p.customerId,
+          recipientModel: 'Customer',
+          type: 'appointment_reminder',
+          title: '⏰ Upcoming Vehicle Service Reminder',
+          message: `Friendly reminder: Your vehicle is due for periodic maintenance on ${p.nextServiceDate}${mileageText}. Book your appointment in advance to reserve your preferred slot!`,
+          data: {
+            paymentId: p._id,
+            nextServiceDate: p.nextServiceDate,
+            nextServiceMileage: mileageVal
+          }
+        });
+        sentCount++;
+      }
+    }
+
+    if (res) {
+      return res.status(200).json({
+        success: true,
+        message: `Processed service reminders. Sent ${sentCount} new notifications.`,
+        sentCount,
+        range: { start: todayStr, end: futureStr }
+      });
+    }
+    return { sentCount };
+  } catch (error) {
+    if (res) return res.status(500).json({ error: error.message });
+    console.error('Error in checkAndSendServiceReminders:', error.message);
   }
 }
 
@@ -190,5 +306,7 @@ module.exports = {
   getPayments,
   createPayment,
   updatePayment,
-  deletePayment
+  deletePayment,
+  getDueServiceReminders,
+  checkAndSendServiceReminders
 };

@@ -82,6 +82,15 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    nextServiceDate: {
+      type: String,
+      trim: true,
+      default: '',
+    },
+    nextServiceMileage: {
+      type: Number,
+      default: 0,
+    },
     date: {
       type: String,
       default: () => new Date().toLocaleDateString(),

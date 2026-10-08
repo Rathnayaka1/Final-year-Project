@@ -162,3 +162,11 @@ export function deletePaymentRecord(id, token) {
   return request(`/payments/${id}`, { method: 'DELETE', token });
 }
 
+export function fetchDueServiceReminders(token) {
+  return request('/payments/reminders/due', { token });
+}
+
+export function triggerSendServiceReminders(token) {
+  return request('/payments/reminders/send-due', { method: 'POST', token });
+}
+

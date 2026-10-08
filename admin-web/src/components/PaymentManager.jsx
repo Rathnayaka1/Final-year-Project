@@ -39,6 +39,12 @@ export default function PaymentManager({
   const [statusFilter, setStatusFilter] = useState('all');
   const [methodFilter, setMethodFilter] = useState('all');
 
+  const getDefaultNextServiceDate = () => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    return d.toISOString().split('T')[0];
+  };
+
   // New Payment Form state
   const [form, setForm] = useState({
     customerId: '',
@@ -51,7 +57,9 @@ export default function PaymentManager({
     paymentMethod: 'cash',
     status: 'completed',
     description: '',
-    parts: []
+    parts: [],
+    nextServiceDate: getDefaultNextServiceDate(),
+    nextServiceMileage: ''
   });
 
   // Active Part selection inside form
@@ -68,6 +76,7 @@ export default function PaymentManager({
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [appliedDiscount, setAppliedDiscount] = useState(0);
   const [loyaltyMessage, setLoyaltyMessage] = useState('');
+  const [sendingReminders, setSendingReminders] = useState(false);
 
   const MAX_LOYALTY_POINTS = 10;
 
@@ -347,6 +356,8 @@ export default function PaymentManager({
       amount: finalPayableAmount,
       paymentMethod: form.paymentMethod,
       status: form.status,
+      nextServiceDate: form.nextServiceDate || '',
+      nextServiceMileage: parseFloat(form.nextServiceMileage) || 0,
       description:
         appliedDiscount > 0
           ? `${form.description || ''} (Loyalty Discount: Rs. ${appliedDiscount})`.trim()
@@ -370,7 +381,9 @@ export default function PaymentManager({
       paymentMethod: 'cash',
       status: 'completed',
       description: '',
-      parts: []
+      parts: [],
+      nextServiceDate: getDefaultNextServiceDate(),
+      nextServiceMileage: ''
     });
     setSelectedCustomer(null);
     setAppliedDiscount(0);
@@ -401,6 +414,28 @@ export default function PaymentManager({
         setEditingPayment(null);
       }
     );
+  };
+
+  const handleTriggerReminders = async () => {
+    try {
+      setSendingReminders(true);
+      const res = await fetch(`${API_BASE_URL}/payments/reminders/send-due`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || localStorage.getItem('token') || ''}`
+        }
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to trigger service reminders.');
+      }
+      alert(`Success! ${data.message || `Processed service reminders. Sent ${data.sentCount || 0} reminders.`}`);
+    } catch (err) {
+      alert(err.message || 'Error sending service reminders.');
+    } finally {
+      setSendingReminders(false);
+    }
   };
 
   // Statistics calculation
@@ -589,6 +624,19 @@ export default function PaymentManager({
     doc.text(`Grand Total Paid:`, 130, yPos + 2);
     doc.setTextColor(211, 84, 0);
     doc.text(`Rs. ${finalAmount.toFixed(2)}`, 170, yPos + 2);
+
+    // Next Service Recommendation Box in PDF
+    if (payment.nextServiceDate) {
+      yPos += 12;
+      doc.setFillColor(254, 245, 231);
+      doc.roundedRect(20, yPos, 170, 9, 2, 2, 'F');
+      doc.setTextColor(211, 84, 0);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      const nextMileageTxt = payment.nextServiceMileage ? ` | Target: ${Number(payment.nextServiceMileage).toLocaleString()} km` : '';
+      doc.text(`Recommended Next Service Date: ${payment.nextServiceDate}${nextMileageTxt}`, 24, yPos + 6);
+      yPos += 4;
+    }
 
     // Notes
     yPos += 20;
@@ -1356,6 +1404,62 @@ export default function PaymentManager({
             </div>
           </div>
 
+          {/* Next Recommended Service & Automatic Reminder */}
+          <div
+            style={{
+              background: '#fffbf2',
+              border: '1px solid #fed7aa',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '16px'
+            }}
+          >
+            <h4
+              style={{
+                margin: '0 0 10px 0',
+                color: '#c2410c',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '14px'
+              }}
+            >
+              📅 Next Recommended Service & Automatic Reminder
+            </h4>
+            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1', minWidth: '180px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>
+                  Recommended Next Date:
+                </label>
+                <input
+                  type="date"
+                  name="nextServiceDate"
+                  value={form.nextServiceDate}
+                  onChange={handleChange}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                />
+              </div>
+              <div style={{ flex: '1', minWidth: '180px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '4px' }}>
+                  Target Mileage / Odometer (km):
+                </label>
+                <input
+                  type="number"
+                  name="nextServiceMileage"
+                  min="0"
+                  placeholder="e.g. 45000"
+                  value={form.nextServiceMileage || ''}
+                  onFocus={(e) => e.target.select()}
+                  onChange={handleChange}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc' }}
+                />
+              </div>
+            </div>
+            <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#9a3412', fontStyle: 'italic' }}>
+              🔔 The customer will automatically receive an in-app service completion alert now, and a smart reminder when this date approaches.
+            </p>
+          </div>
+
           <label style={{ display: 'block', marginBottom: '16px' }}>
             Description / Notes
             <textarea
@@ -1558,6 +1662,28 @@ export default function PaymentManager({
             <option value="online">Online</option>
             <option value="upi">UPI</option>
           </select>
+
+          <button
+            type="button"
+            onClick={handleTriggerReminders}
+            disabled={sendingReminders}
+            title="Scan upcoming service dates within the next 7 days and dispatch automated in-app reminders to customers"
+            style={{
+              background: '#fef5e7',
+              border: '1px solid #f5b041',
+              color: '#d35400',
+              padding: '8px 14px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            {sendingReminders ? '⏳ Checking...' : '⏰ Send 7-Day Due Reminders'}
+          </button>
         </div>
       </div>
 
@@ -1610,7 +1736,7 @@ export default function PaymentManager({
                     </td>
                     <td style={{ padding: '10px', fontSize: '13px' }}>
                       <div>{payment.serviceName || 'Automotive Service'}</div>
-                      <div style={{ display: 'flex', gap: '8px', marginTop: '3px' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginTop: '3px', flexWrap: 'wrap' }}>
                         {partsCount > 0 && (
                           <span style={{ color: '#28a745', fontSize: '11px', fontWeight: 'bold' }}>
                             📦 {partsCount} part{partsCount > 1 ? 's' : ''}
@@ -1619,6 +1745,11 @@ export default function PaymentManager({
                         {laborCount > 0 && (
                           <span style={{ color: '#e67e22', fontSize: '11px', fontWeight: 'bold' }}>
                             👨‍🔧 {laborCount} extra task{laborCount > 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {payment.nextServiceDate && (
+                          <span style={{ color: '#c2410c', fontSize: '11px', fontWeight: 'bold' }}>
+                            📅 Next: {payment.nextServiceDate}
                           </span>
                         )}
                       </div>
