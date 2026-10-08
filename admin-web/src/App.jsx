@@ -660,12 +660,10 @@ export default function App() {
           <ProtectedFeature userRole={auth.user.role} feature="technicians">
             <TechnicianManager
               technicians={technicians}
-              serviceCenters={serviceCenters}
               onCreate={handleTechnicianCreate}
               onUpdate={handleTechnicianUpdate}
               onDelete={handleTechnicianDelete}
               loading={loading}
-              token={token}
             />
           </ProtectedFeature>
         )}
