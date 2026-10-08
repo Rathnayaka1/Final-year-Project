@@ -31,8 +31,7 @@ export default function AppointmentTable({ appointments, onUpdate, updatingId })
               <th>#</th>
               <th>Customer</th>
               <th>Service</th>
-              <th>Preferred slot</th>
-              <th>Vehicle location</th>
+
               <th>Status</th>
               <th>Queue</th>
               <th>Actions</th>
@@ -41,7 +40,7 @@ export default function AppointmentTable({ appointments, onUpdate, updatingId })
           <tbody>
             {appointments.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty">No appointments yet.</td>
+                <td colSpan={6} className="empty">No appointments yet.</td>
               </tr>
             )}
             {appointments.map((appt) => (
@@ -52,35 +51,7 @@ export default function AppointmentTable({ appointments, onUpdate, updatingId })
                   <div className="muted small">{appt.customerPhone || appt.customerEmail}</div>
                 </td>
                 <td>{appt.serviceName}</td>
-                <td>
-                  {appt.preferredDate}
-                  <div className="muted small">{appt.preferredTime}</div>
-                  {appt.startedAt && (
-                    <div className="small" style={{ color: '#0284c7', fontSize: '11px', marginTop: '4px', fontWeight: '500' }}>
-                      ▶ Started: {new Date(appt.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  )}
-                  {appt.completedAt && (
-                    <div className="small" style={{ color: '#16a34a', fontSize: '11px', marginTop: '2px', fontWeight: '500' }}>
-                      ✓ Done: {new Date(appt.completedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      {appt.actualDuration !== undefined && appt.actualDuration !== null ? ` (${appt.actualDuration} hrs)` : ''}
-                    </div>
-                  )}
-                </td>
-                <td>
-                  {appt.vehicleLocation ? (
-                    <>
-                      <strong>{appt.vehicleLocation.label || 'Selected point'}</strong>
-                      <div className="muted small">
-                        {Number.isFinite(appt.vehicleLocation.latitude) && Number.isFinite(appt.vehicleLocation.longitude)
-                          ? `${Number(appt.vehicleLocation.latitude).toFixed(6)}, ${Number(appt.vehicleLocation.longitude).toFixed(6)}`
-                          : 'Location saved'}
-                      </div>
-                    </>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                </td>
+
                 <td>
                   <select
                     value={appt.status}
