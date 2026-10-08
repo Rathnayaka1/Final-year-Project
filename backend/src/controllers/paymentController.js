@@ -74,8 +74,26 @@ async function createPayment(req, res) {
       ? sanitizedLaborItems.reduce((sum, item) => sum + item.cost, 0)
       : (laborCost !== undefined ? parseFloat(laborCost) : 0);
 
+    // Auto-resolve customerId from appointment if not provided
+    let resolvedCustomerId = customerId || null;
+    if (!resolvedCustomerId && appointmentId) {
+      try {
+        const linkedAppointment = await Appointment.findOne({
+          $or: [
+            { confirmationCode: appointmentId.trim().toUpperCase() },
+            { _id: appointmentId.match(/^[0-9a-fA-F]{24}$/) ? appointmentId : null }
+          ]
+        }).select('customer');
+        if (linkedAppointment?.customer) {
+          resolvedCustomerId = linkedAppointment.customer;
+        }
+      } catch (e) {
+        // silently ignore lookup failure
+      }
+    }
+
     const payment = await Payment.create({
-      customerId: customerId || null,
+      customerId: resolvedCustomerId,
       customerName: customerName.trim(),
       appointmentId: (appointmentId || '').trim(),
       serviceName: (serviceName || '').trim(),
@@ -151,8 +169,8 @@ async function createPayment(req, res) {
         recipientId: payment.customerId,
         type: 'general',
         title: 'Payment Completed',
-        message: `Payment of Rs.${finalAmount.toFixed(2)} for ${payment.serviceName || 'your service'} has been completed. Invoice: ${generatedInvoiceId}`,
-        data: { paymentId: payment._id, invoiceId: generatedInvoiceId, amount: finalAmount }
+        message: `Payment of Rs.${numericAmount.toFixed(2)} for ${payment.serviceName || 'your service'} has been completed. Invoice: ${generatedInvoiceId}`,
+        data: { paymentId: payment._id, invoiceId: generatedInvoiceId, amount: numericAmount }
       });
     }
 
