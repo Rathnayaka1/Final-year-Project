@@ -1,7 +1,4 @@
 const Technician = require('../models/Technician');
-const { spawn } = require('child_process');
-const path = require('path');
-
 function serializeTechnician(doc) {
   const technician = doc.toObject({ versionKey: false });
   technician.id = technician._id;
@@ -104,135 +101,9 @@ async function deleteTechnician(req, res) {
   }
 }
 
-function predictPerformance(req, res) {
-  const inputData = JSON.stringify(req.body);
-  const scriptPath = path.join(process.cwd(), 'scripts', 'predict.py');
-
-  const pythonCmd = process.platform === 'win32' ? 'py' : 'python3';
-  const python = spawn(pythonCmd, [scriptPath, inputData]);
-
-  let result = '';
-  let errorOutput = '';
-
-  python.on('error', (err) => {
-    console.error('Failed to start python process:', err);
-    if (!res.headersSent) {
-      return res.status(500).json({ error: 'Failed to start prediction script', details: err.message });
-    }
-  });
-
-  python.stdout.on('data', (data) => { result += data.toString(); });
-  python.stderr.on('data', (data) => { errorOutput += data.toString(); });
-
-  python.on('close', (code) => {
-    if (res.headersSent) return;
-    if (code !== 0) {
-      console.error('Python error:', errorOutput);
-      return res.status(500).json({ error: 'Prediction failed', details: errorOutput });
-    }
-    try {
-      return res.status(200).json(JSON.parse(result));
-    } catch (err) {
-      return res.status(500).json({ error: 'Invalid prediction output', raw: result });
-    }
-  });
-}
-
-async function getAvailableTechnicians(req, res) {
-  try {
-    const targetCenterId = req.query.centerId || req.query.serviceCenterId;
-    const { vehicleType = 'Car', serviceType = 'Full Body', expectedTime = 2.0 } = req.query;
-
-    let query = { status: 'active' };
-    if (targetCenterId) {
-      query = { status: 'active', $or: [{ serviceCenter: targetCenterId }, { serviceCenter: null }] };
-    }
-
-    let technicians = await Technician.find(query);
-    if (technicians.length === 0) {
-      technicians = await Technician.find({ status: 'active' });
-    }
-
-    if (technicians.length === 0) {
-      return res.status(200).json({ technicians: [] });
-    }
-
-    const currentMonth = new Date().getMonth() + 1;
-    const ServiceCenter = require('../models/ServiceCenter');
-    const center = targetCenterId ? await ServiceCenter.findById(targetCenterId) : null;
-    const centerCode = center ? (center.name.includes('1') ? 'SC001' : 'SC002') : 'SC001';
-
-    // Prepare data for ML Model
-    const mlPayload = technicians.map((tech, index) => ({
-      center_id: centerCode,
-      technician_id: `tec_0${(index % 3) + 1}`, // map to ML known ID
-      vehicle_type: vehicleType,
-      service_type: serviceType,
-      month: currentMonth,
-      experience_years: tech.experienceYears || 0,
-      job_count: tech.totalJobs || 0,
-      work_success_rate: tech.successRate || 100,
-      customer_rating: tech.averageRating || 4.0,
-      expected_time_hrs: Number(expectedTime)
-    }));
-
-    let hasResponded = false;
-    const sendResponse = (predictions = []) => {
-      if (hasResponded) return;
-      hasResponded = true;
-
-      const formattedTechs = technicians.map((tech, index) => {
-        const serialized = serializeTechnician(tech);
-        serialized.predictedLevel = predictions[index]?.predicted_performance_level || (tech.averageRating >= 4.7 ? 'Excellent' : 'Top Performer');
-        return serialized;
-      });
-
-      return res.status(200).json({ technicians: formattedTechs });
-    };
-
-    const scriptPath = path.join(process.cwd(), 'scripts', 'predict.py');
-    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-    
-    try {
-      const python = spawn(pythonCmd, [scriptPath, inputData]);
-      let result = '';
-
-      python.stdout.on('data', (data) => { result += data.toString(); });
-      python.on('error', (err) => {
-        console.warn('Python spawn error, returning fallback technicians:', err.message);
-        sendResponse([]);
-      });
-
-      python.on('close', (code) => {
-        let predictions = [];
-        if (code === 0) {
-          try {
-            predictions = JSON.parse(result);
-          } catch (e) {
-            console.error('Failed to parse ML output', e);
-          }
-        }
-        sendResponse(predictions);
-      });
-    } catch (err) {
-      console.warn('Failed to start python process:', err.message);
-      sendResponse([]);
-    }
-
-    // Safety net timeout of 3 seconds
-    setTimeout(() => {
-      sendResponse([]);
-    }, 3000);
-  } catch (error) {
-    return res.status(500).json({ error: error.message });
-  }
-}
-
 module.exports = {
   listTechnicians,
   createTechnician,
   updateTechnician,
-  deleteTechnician,
-  predictPerformance,
-  getAvailableTechnicians
+  deleteTechnician
 };
