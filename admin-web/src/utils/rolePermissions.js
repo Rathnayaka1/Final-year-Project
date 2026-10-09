@@ -34,8 +34,7 @@ export const ROLE_PERMISSIONS = {
       'payments',
       'appointments',
       'customerLoyalty',
-      'technicians',
-      'technicianPerformance'
+      'technicians'
     ]
   },
   manager: {
@@ -44,8 +43,7 @@ export const ROLE_PERMISSIONS = {
     features: [
       'stocks',
       'payments',
-      'appointments',
-      'technicianPerformance'
+      'appointments'
     ]
   },
   supervisor: {
@@ -53,8 +51,7 @@ export const ROLE_PERMISSIONS = {
     description: 'Assign technicians and manage appointments',
     features: [
       'technicians',
-      'appointments',
-      'technicianPerformance'
+      'appointments'
     ]
   },
   cashier: {
