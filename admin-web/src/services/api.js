@@ -39,6 +39,14 @@ export function login(credentials) {
   return request('/auth/login', { method: 'POST', data: credentials });
 }
 
+export function registerServiceCenter(data) {
+  return request('/auth/register-center', { method: 'POST', data });
+}
+
+export function fetchPublicCenters() {
+  return request('/auth/centers');
+}
+
 // Service API
 export function fetchServices(token) {
   return request('/services', { token });

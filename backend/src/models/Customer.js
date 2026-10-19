@@ -12,10 +12,17 @@ const customerSchema = new mongoose.Schema(
     profileImage: { type: String },
     defaultVehicle: { type: mongoose.Schema.Types.ObjectId, ref: 'Vehicle' },
     loyaltyPoints: { type: Number, default: 0 },
+    branchLoyalty: [
+      {
+        serviceCenter: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceCenter' },
+        points: { type: Number, default: 0 }
+      }
+    ],
     loyaltyTransactions: [
       {
         type: { type: String, enum: ['earn', 'redeem'], required: true },
         points: { type: Number, required: true, min: 1 },
+        serviceCenter: { type: mongoose.Schema.Types.ObjectId, ref: 'ServiceCenter', default: null },
         note: { type: String, default: '' },
         createdAt: { type: Date, default: Date.now }
       }

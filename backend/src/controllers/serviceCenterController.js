@@ -37,7 +37,11 @@ async function getNearbyServiceCenters(req, res) {
 
 async function listServiceCenters(req, res) {
   try {
-    const centers = await ServiceCenter.find({ isActive: true }).sort({ name: 1 });
+    const filter = { isActive: true };
+    if (req.user?.serviceCenter) {
+      filter._id = req.user.serviceCenter;
+    }
+    const centers = await ServiceCenter.find(filter).sort({ name: 1 });
     const serialized = centers.map(center => {
       const obj = center.toObject();
       obj.id = obj._id;

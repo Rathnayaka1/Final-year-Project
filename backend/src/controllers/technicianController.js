@@ -14,7 +14,14 @@ function serializeTechnician(doc) {
 
 async function listTechnicians(req, res) {
   try {
-    const technicians = await Technician.find().populate('serviceCenter', 'name address');
+    const filter = {};
+    if (req.user?.serviceCenter) {
+      filter.serviceCenter = req.user.serviceCenter;
+    } else if (req.query.serviceCenterId) {
+      filter.serviceCenter = req.query.serviceCenterId;
+    }
+
+    const technicians = await Technician.find(filter).populate('serviceCenter', 'name address');
     return res.status(200).json({ technicians: technicians.map(serializeTechnician) });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -38,6 +45,8 @@ async function createTechnician(req, res) {
     return res.status(400).json({ error: 'Name, phone, and specialization are required' });
   }
 
+  const targetCenter = req.user?.serviceCenter || serviceCenter || null;
+
   try {
     const technician = await Technician.create({
       name,
@@ -46,7 +55,7 @@ async function createTechnician(req, res) {
       specialization,
       experienceYears,
       status,
-      serviceCenter: serviceCenter || null,
+      serviceCenter: targetCenter,
       skills: Array.isArray(skills)
         ? skills
         : typeof skills === 'string' && skills.trim()
@@ -106,7 +115,7 @@ const { predictTechnicianPerformance } = require('../services/aiPerformanceServi
 async function getAvailableTechnicians(req, res) {
   try {
     const { centerId, serviceCenterId, vehicleType, serviceType } = req.query || {};
-    const targetCenterId = centerId || serviceCenterId;
+    const targetCenterId = req.user?.serviceCenter || centerId || serviceCenterId;
 
     let query = { status: 'active' };
     if (targetCenterId) {

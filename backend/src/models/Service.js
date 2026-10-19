@@ -15,6 +15,11 @@ const serviceSchema = new mongoose.Schema(
       type: String,
       default: 'General',
       enum: ['Maintenance', 'Mechanical', 'Detailing & Wash', 'Electrical & AC', 'General']
+    },
+    serviceCenter: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ServiceCenter',
+      default: null
     }
   },
   { timestamps: true }

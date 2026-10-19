@@ -9,6 +9,11 @@ const userSchema = new mongoose.Schema(
       type: String, 
       enum: ['admin', 'manager', 'supervisor', 'cashier', 'receptionist'], 
       default: 'cashier' 
+    },
+    serviceCenter: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ServiceCenter',
+      default: null
     }
   },
   { timestamps: true }
