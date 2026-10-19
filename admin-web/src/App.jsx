@@ -12,6 +12,7 @@ import TechnicianManager from './components/TechnicianManager';
 import { hasPermission, getAccessibleFeatures, getRoleDescription, ROLE_LABELS } from './utils/rolePermissions';
 import {
   login as loginRequest,
+  registerServiceCenter,
   fetchServiceCenters,
   createServiceCenter,
   updateServiceCenter,
@@ -61,48 +62,7 @@ export default function App() {
   const [appointments, setAppointments] = useState([]);
   const [technicians, setTechnicians] = useState([]);
 
-  // Payments සඳහා LocalStorage භාවිතය
-  const [payments, setPayments] = useState(() => {
-    const savedPayments = window.localStorage.getItem('ssc_admin_payments');
-    if (savedPayments) {
-      try { return JSON.parse(savedPayments); } catch (e) { }
-    }
-    return [
-      {
-        id: 1,
-        customerName: 'John Smith',
-        appointmentId: 'APT-001',
-        amount: 129.99,
-        paymentMethod: 'card',
-        status: 'completed',
-        description: 'Oil change + filter replacement',
-        createdAt: new Date().toISOString(),
-        date: new Date().toLocaleDateString()
-      },
-      {
-        id: 2,
-        customerName: 'Sarah Johnson',
-        appointmentId: 'APT-002',
-        amount: 249.50,
-        paymentMethod: 'cash',
-        status: 'completed',
-        description: 'Brake service',
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        date: new Date(Date.now() - 86400000).toLocaleDateString()
-      },
-      {
-        id: 3,
-        customerName: 'Mike Davis',
-        appointmentId: 'APT-003',
-        amount: 89.00,
-        paymentMethod: 'online',
-        status: 'pending',
-        description: 'Diagnostic check',
-        createdAt: new Date().toISOString(),
-        date: new Date().toLocaleDateString()
-      }
-    ];
-  });
+  const [payments, setPayments] = useState([]);
 
   const [customerLoyalty, setCustomerLoyalty] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -206,9 +166,8 @@ export default function App() {
         if (result.type === 'appointments') setAppointments(Array.isArray(result.data) ? result.data : []);
         if (result.type === 'technicians') setTechnicians(Array.isArray(result.data) ? result.data : []);
         if (result.type === 'loyalty') setCustomerLoyalty(result.data);
-        if (result.type === 'payments' && Array.isArray(result.data) && result.data.length > 0) {
+        if (result.type === 'payments' && Array.isArray(result.data)) {
           setPayments(result.data);
-          window.localStorage.setItem('ssc_admin_payments', JSON.stringify(result.data));
         }
       });
 
@@ -235,6 +194,22 @@ export default function App() {
       // Reset activeTab to new user's first accessible feature
       const newRole = result?.user?.role;
       const firstFeature = getAccessibleFeatures(newRole)[0] || 'services';
+      setActiveTab(firstFeature);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegisterCenter = async (registrationData) => {
+    try {
+      setLoading(true);
+      setError('');
+      const result = await registerServiceCenter(registrationData);
+      setAuth(result);
+      window.localStorage.setItem('ssc_admin_session', JSON.stringify(result));
+      const firstFeature = getAccessibleFeatures(result?.user?.role)[0] || 'services';
       setActiveTab(firstFeature);
     } catch (err) {
       setError(err.message);
@@ -438,11 +413,7 @@ export default function App() {
         };
       }
 
-      setPayments((prev) => {
-        const updated = [newPayment, ...prev.filter(p => (p.id || p._id) !== (newPayment.id || newPayment._id))];
-        window.localStorage.setItem('ssc_admin_payments', JSON.stringify(updated));
-        return updated;
-      });
+      setPayments((prev) => [newPayment, ...prev.filter(p => (p.id || p._id) !== (newPayment.id || newPayment._id))]);
 
       // Earn loyalty points for customer if customerId is selected
       if (payload.customerId) {
@@ -481,11 +452,7 @@ export default function App() {
       setLoading(true);
       const res = await updatePaymentRecord(id, payload, token);
       const updatedPayment = res.payment || res;
-      setPayments((prev) => {
-        const updated = prev.map(p => ((p.id || p._id) === id ? { ...p, ...updatedPayment } : p));
-        window.localStorage.setItem('ssc_admin_payments', JSON.stringify(updated));
-        return updated;
-      });
+      setPayments((prev) => prev.map(p => ((p.id || p._id) === id ? { ...p, ...updatedPayment } : p)));
       if (onSuccess) onSuccess();
     } catch (err) {
       setError(err.message);
@@ -500,11 +467,7 @@ export default function App() {
     try {
       setLoading(true);
       await deletePaymentRecord(id, token);
-      setPayments((prev) => {
-        const updated = prev.filter(p => (p.id || p._id) !== id);
-        window.localStorage.setItem('ssc_admin_payments', JSON.stringify(updated));
-        return updated;
-      });
+      setPayments((prev) => prev.filter(p => (p.id || p._id) !== id));
     } catch (err) {
       setError(err.message);
     } finally {
@@ -514,8 +477,10 @@ export default function App() {
 
   const handleLogout = () => {
     setAuth(null);
+    setPayments([]);
     setError('');
     window.localStorage.removeItem('ssc_admin_session');
+    window.localStorage.removeItem('ssc_admin_payments');
   };
 
   if (!token) {
@@ -526,7 +491,7 @@ export default function App() {
           <p>Monitor walk-ins, manage queues, and wrap repairs faster.</p>
         </div>
         {error && <div className="error">{error}</div>}
-        <LoginForm onSubmit={handleLogin} loading={loading} />
+        <LoginForm onSubmit={handleLogin} onRegister={handleRegisterCenter} loading={loading} />
       </div>
     );
   }
@@ -535,12 +500,35 @@ export default function App() {
     <div className="dashboard">
       <header className="dashboard-header">
         <div>
-          <h1>🚗 Service Center Admin</h1>
-          <p className="muted">Manage services, inventory, appointments, technicians and payments</p>
+          <h1>🚗 {auth.user.serviceCenterName || 'Service Center Admin'}</h1>
+          <p className="muted">
+            {auth.user.serviceCenterName 
+              ? `Workspace scoped to ${auth.user.serviceCenterName} — inventory, queues & staff isolated`
+              : 'Manage services, inventory, appointments, technicians and payments'}
+          </p>
         </div>
         <div className="header-actions">
           <div className="user-info">
             <div className="user-badge">{auth.user.name}</div>
+            {auth.user.serviceCenterName && (
+              <div 
+                className="center-badge" 
+                style={{
+                  background: '#e0f2fe',
+                  color: '#0369a1',
+                  fontWeight: 600,
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.82rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  border: '1px solid #bae6fd'
+                }}
+              >
+                🏢 {auth.user.serviceCenterName}
+              </div>
+            )}
             <div className="role-badge" title={getRoleDescription(auth.user.role)}>
               {ROLE_LABELS[auth.user.role]}
             </div>
@@ -554,6 +542,14 @@ export default function App() {
       {error && <div className="error">{error}</div>}
 
       <nav className="tab-nav">
+        {hasPermission(auth.user.role, 'serviceCenters') && (
+          <button
+            className={`tab-button ${activeTab === 'centers' ? 'active' : ''}`}
+            onClick={() => setActiveTab('centers')}
+          >
+            🏢 Center Registration
+          </button>
+        )}
         {hasPermission(auth.user.role, 'services') && (
           <button
             className={`tab-button ${activeTab === 'services' ? 'active' : ''}`}
@@ -584,14 +580,6 @@ export default function App() {
             onClick={() => setActiveTab('technicians')}
           >
             👨‍🔧 Technicians
-          </button>
-        )}
-        {hasPermission(auth.user.role, 'serviceCenters') && (
-          <button
-            className={`tab-button ${activeTab === 'centers' ? 'active' : ''}`}
-            onClick={() => setActiveTab('centers')}
-          >
-            🏢 Service Centers
           </button>
         )}
         {hasPermission(auth.user.role, 'payments') && (

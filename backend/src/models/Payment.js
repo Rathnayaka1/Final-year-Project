@@ -17,6 +17,11 @@ const paymentSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    serviceCenter: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ServiceCenter',
+      default: null,
+    },
     serviceName: {
       type: String,
       trim: true,

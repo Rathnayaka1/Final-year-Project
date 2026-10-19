@@ -7,16 +7,18 @@ const {
   deleteStock,
 } = require('../controllers/stockController');
 
+const { optionalAuth } = require('../middlewares/authMiddleware');
+
 // GET /api/stocks
-router.get('/', getStocks);
+router.get('/', optionalAuth, getStocks);
 
 // POST /api/stocks
-router.post('/', createStock);
+router.post('/', optionalAuth, createStock);
 
 // PATCH /api/stocks/:id
-router.patch('/:id', updateStock);
+router.patch('/:id', optionalAuth, updateStock);
 
 // DELETE /api/stocks/:id
-router.delete('/:id', deleteStock);
+router.delete('/:id', optionalAuth, deleteStock);
 
 module.exports = router;

@@ -28,8 +28,8 @@ export const ROLE_PERMISSIONS = {
     label: 'Administrator',
     description: 'Full access to all dashboard features',
     features: [
-      'services',
       'serviceCenters',
+      'services',
       'stocks',
       'payments',
       'appointments',

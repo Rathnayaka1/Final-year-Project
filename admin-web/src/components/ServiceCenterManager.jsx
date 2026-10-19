@@ -1,20 +1,38 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 
 const defaultCenter = { lat: 6.9271, lng: 79.8612 };
 
-export default function ServiceCenterManager({ serviceCenters, onCreate, onUpdate, loading }) {
-  const [isCreating, setIsCreating] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+export default function ServiceCenterManager({ serviceCenters, onUpdate, loading }) {
+  // Since each admin manages their own service center, pick the current center
+  const currentCenter = serviceCenters && serviceCenters.length > 0 ? serviceCenters[0] : null;
+
   const [form, setForm] = useState({
     name: '',
     address: '',
     phone: '',
     email: '',
-    latitude: '',
-    longitude: '',
+    latitude: '6.9271',
+    longitude: '79.8612',
     facilities: '',
     isActive: true
   });
+
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    if (currentCenter) {
+      setForm({
+        name: currentCenter.name || '',
+        address: currentCenter.address || '',
+        phone: currentCenter.phone || '',
+        email: currentCenter.email || '',
+        latitude: currentCenter.location?.coordinates?.[1]?.toString() || '6.9271',
+        longitude: currentCenter.location?.coordinates?.[0]?.toString() || '79.8612',
+        facilities: currentCenter.facilities?.join(', ') || '',
+        isActive: currentCenter.isActive !== false
+      });
+    }
+  }, [currentCenter]);
 
   const mapQuery = useMemo(() => {
     const lat = parseFloat(form.latitude);
@@ -49,6 +67,7 @@ export default function ServiceCenterManager({ serviceCenters, onCreate, onUpdat
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    if (!currentCenter) return;
     
     const payload = {
       name: form.name,
@@ -56,52 +75,17 @@ export default function ServiceCenterManager({ serviceCenters, onCreate, onUpdat
       phone: form.phone,
       email: form.email || undefined,
       coordinates: {
-        lat: parseFloat(form.latitude),
-        lng: parseFloat(form.longitude)
+        lat: parseFloat(form.latitude) || 6.9271,
+        lng: parseFloat(form.longitude) || 79.8612
       },
       facilities: form.facilities ? form.facilities.split(',').map(f => f.trim()).filter(Boolean) : [],
       isActive: form.isActive
     };
 
-    if (editingId) {
-      onUpdate(editingId, payload, () => {
-        resetForm();
-      });
-    } else {
-      onCreate(payload, () => {
-        resetForm();
-      });
-    }
-  };
-
-  const resetForm = () => {
-    setEditingId(null);
-    setIsCreating(false);
-    setForm({
-      name: '',
-      address: '',
-      phone: '',
-      email: '',
-      latitude: '',
-      longitude: '',
-      facilities: '',
-      isActive: true
+    onUpdate(currentCenter.id, payload, () => {
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 4000);
     });
-  };
-
-  const handleEdit = (center) => {
-    setEditingId(center.id);
-    setForm({
-      name: center.name,
-      address: center.address,
-      phone: center.phone,
-      email: center.email || '',
-      latitude: center.location?.coordinates?.[1]?.toString() || '',
-      longitude: center.location?.coordinates?.[0]?.toString() || '',
-      facilities: center.facilities?.join(', ') || '',
-      isActive: center.isActive !== false
-    });
-    setIsCreating(true);
   };
 
   const getStatusBadge = (center) => {
@@ -122,47 +106,61 @@ export default function ServiceCenterManager({ serviceCenters, onCreate, onUpdat
     <div className="card">
       <div className="card-header">
         <div>
-          <h2>🏢 Service Centers</h2>
-          <p className="muted">Manage service center locations and information</p>
+          <h2>🏢 Service Center Registration &amp; Profile</h2>
+          <p className="muted">
+            Complete and update your service center's official registration details, map location, and facilities.
+          </p>
         </div>
-        {!isCreating && (
-          <button onClick={() => setIsCreating(true)}>+ Add Service Center</button>
-        )}
+        {currentCenter && getStatusBadge(currentCenter)}
       </div>
 
-      {isCreating && (
+      {savedSuccess && (
+        <div style={{
+          backgroundColor: '#dcfce7',
+          color: '#166534',
+          padding: '0.85rem 1.25rem',
+          borderRadius: '8px',
+          marginBottom: '1.25rem',
+          fontWeight: '500',
+          border: '1px solid #bbf7d0'
+        }}>
+          ✅ Service Center registration details updated successfully!
+        </div>
+      )}
+
+      {currentCenter ? (
         <form className="service-form" onSubmit={handleSubmit}>
           <div className="form-grid">
             <label>
-              Center Name *
+              Service Center Name *
               <input 
                 name="name" 
                 value={form.name} 
                 onChange={handleChange} 
-                placeholder="Main Service Center"
+                placeholder="e.g. Kandy Auto Hub"
                 required 
               />
             </label>
             <label>
-              Phone *
+              Official Contact Phone *
               <input 
                 name="phone" 
                 type="tel"
                 value={form.phone} 
                 onChange={handleChange} 
-                placeholder="+1234567890"
+                placeholder="+94112345678"
                 required 
               />
             </label>
           </div>
 
           <label>
-            Address *
+            Service Center Address *
             <input 
               name="address" 
               value={form.address} 
               onChange={handleChange} 
-              placeholder="123 Main St, City, State 12345"
+              placeholder="e.g. 123 Colombo Road, Kandy"
               required 
             />
           </label>
@@ -170,11 +168,13 @@ export default function ServiceCenterManager({ serviceCenters, onCreate, onUpdat
           <div className="map-location-section">
             <div className="map-preview-header">
               <div>
-                <strong>Location Preview</strong>
-                <p className="hint">Enter coordinates or an address to point out the service center location.</p>
+                <strong>Location Preview (Customer Mobile App Map)</strong>
+                <p className="hint">
+                  Enter coordinates or an address to pinpoint where your service center appears on the customer map.
+                </p>
               </div>
               <a className="map-link" href={mapSearchUrl} target="_blank" rel="noreferrer">
-                Open in Google Maps
+                Open in Google Maps ↗
               </a>
             </div>
 
@@ -192,7 +192,7 @@ export default function ServiceCenterManager({ serviceCenters, onCreate, onUpdat
 
           <div className="form-grid">
             <label>
-              Latitude *
+              Latitude (Map Coordinate) *
               <input 
                 name="latitude" 
                 type="number"
@@ -204,7 +204,7 @@ export default function ServiceCenterManager({ serviceCenters, onCreate, onUpdat
               />
             </label>
             <label>
-              Longitude *
+              Longitude (Map Coordinate) *
               <input 
                 name="longitude" 
                 type="number"
@@ -217,124 +217,49 @@ export default function ServiceCenterManager({ serviceCenters, onCreate, onUpdat
             </label>
           </div>
 
-          <label>
-            Email
-            <input 
-              name="email" 
-              type="email"
-              value={form.email} 
-              onChange={handleChange} 
-              placeholder="center@example.com"
-            />
-          </label>
+          <div className="form-grid">
+            <label>
+              Support Email
+              <input 
+                name="email" 
+                type="email"
+                value={form.email} 
+                onChange={handleChange} 
+                placeholder="contact@servicecenter.com"
+              />
+            </label>
+            <label>
+              Facilities &amp; Amenities (comma-separated)
+              <input 
+                name="facilities" 
+                value={form.facilities} 
+                onChange={handleChange} 
+                placeholder="Customer Lounge, WiFi, Vehicle Lift, AC Waiting Area"
+              />
+            </label>
+          </div>
 
-          <label>
-            Facilities (comma-separated)
-            <input 
-              name="facilities" 
-              value={form.facilities} 
-              onChange={handleChange} 
-              placeholder="Parking, WiFi, Waiting Area, Coffee"
-            />
-          </label>
-
-          <label className="checkbox-label">
+          <label className="checkbox-label" style={{ marginTop: '0.5rem' }}>
             <input 
               type="checkbox"
               name="isActive"
               checked={form.isActive}
               onChange={handleChange}
             />
-            <span>Active</span>
+            <span>Open &amp; Active for Online Bookings</span>
           </label>
 
-          <div className="form-actions">
+          <div className="form-actions" style={{ marginTop: '1.25rem' }}>
             <button type="submit" disabled={loading}>
-              {editingId ? '💾 Update' : '➕ Create'} Service Center
-            </button>
-            <button type="button" onClick={resetForm} className="secondary">
-              Cancel
+              {loading ? 'Saving…' : '💾 Save & Update Service Center Registration'}
             </button>
           </div>
         </form>
+      ) : (
+        <div className="empty-state">
+          <p>📍 Loading service center registration details...</p>
+        </div>
       )}
-
-      <div className="service-centers-grid">
-        {serviceCenters.length === 0 ? (
-          <div className="empty-state">
-            <p>📍 No service centers found. Add your first service center to get started.</p>
-          </div>
-        ) : (
-          serviceCenters.map((center) => (
-            <div key={center.id} className="service-center-card">
-              <div className="center-header">
-                <h3>{center.name}</h3>
-                {getStatusBadge(center)}
-              </div>
-              
-              <div className="center-details">
-                <div className="detail-row">
-                  <span className="icon">📍</span>
-                  <span>{center.address}</span>
-                </div>
-                <div className="detail-row">
-                  <span className="icon">📞</span>
-                  <span>{center.phone}</span>
-                </div>
-                {center.email && (
-                  <div className="detail-row">
-                    <span className="icon">✉️</span>
-                    <span>{center.email}</span>
-                  </div>
-                )}
-                {center.location?.coordinates && (
-                  <div className="detail-row">
-                    <span className="icon">🌍</span>
-                    <span className="coordinates">
-                      {center.location.coordinates[1].toFixed(4)}, {center.location.coordinates[0].toFixed(4)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {center.facilities && center.facilities.length > 0 && (
-                <div className="facilities">
-                  <strong>Facilities:</strong>
-                  <div className="facility-tags">
-                    {center.facilities.map((facility, idx) => (
-                      <span key={idx} className="facility-tag">{facility}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="center-stats">
-                <div className="stat">
-                  <span className="stat-label">Queue</span>
-                  <span className="stat-value">{center.currentQueueLength || 0}</span>
-                </div>
-                <div className="stat">
-                  <span className="stat-label">Avg Wait</span>
-                  <span className="stat-value">{center.averageWaitTime || 30}m</span>
-                </div>
-                <div className="stat">
-                  <span className="stat-label">Rating</span>
-                  <span className="stat-value">⭐ {center.rating?.toFixed(1) || '0.0'}</span>
-                </div>
-              </div>
-
-              <div className="center-actions">
-                <button 
-                  onClick={() => handleEdit(center)}
-                  className="secondary small"
-                >
-                  ✏️ Edit
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
     </div>
   );
 }

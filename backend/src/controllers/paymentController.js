@@ -7,12 +7,27 @@ function serializePayment(doc) {
   const payment = doc.toObject({ versionKey: false });
   payment.id = payment._id;
   delete payment._id;
+
+  if (payment.serviceCenter && payment.serviceCenter._id) {
+    payment.serviceCenter.id = payment.serviceCenter._id;
+    delete payment.serviceCenter._id;
+  }
+
   return payment;
 }
 
 async function getPayments(req, res) {
   try {
-    const payments = await Payment.find().sort({ createdAt: -1 });
+    const filter = {};
+    if (req.user?.serviceCenter) {
+      filter.serviceCenter = req.user.serviceCenter;
+    } else if (req.query.serviceCenterId) {
+      filter.serviceCenter = req.query.serviceCenterId;
+    }
+
+    const payments = await Payment.find(filter)
+      .populate('serviceCenter', 'name address')
+      .sort({ createdAt: -1 });
     return res.status(200).json({ payments: payments.map(serializePayment) });
   } catch (error) {
     return res.status(500).json({ error: error.message });
@@ -76,18 +91,26 @@ async function createPayment(req, res) {
       ? sanitizedLaborItems.reduce((sum, item) => sum + item.cost, 0)
       : (laborCost !== undefined ? parseFloat(laborCost) : 0);
 
-    // Auto-resolve customerId from appointment if not provided
+    // Auto-resolve customerId and serviceCenter from appointment if not provided
     let resolvedCustomerId = customerId || null;
-    if (!resolvedCustomerId && appointmentId) {
+    let targetCenter = req.user?.serviceCenter || req.body.serviceCenter || null;
+
+    if (appointmentId) {
       try {
         const linkedAppointment = await Appointment.findOne({
           $or: [
             { confirmationCode: appointmentId.trim().toUpperCase() },
             { _id: appointmentId.match(/^[0-9a-fA-F]{24}$/) ? appointmentId : null }
           ]
-        }).select('customer');
-        if (linkedAppointment?.customer) {
-          resolvedCustomerId = linkedAppointment.customer;
+        }).select('customer serviceCenter');
+
+        if (linkedAppointment) {
+          if (!resolvedCustomerId && linkedAppointment.customer) {
+            resolvedCustomerId = linkedAppointment.customer;
+          }
+          if (!targetCenter && linkedAppointment.serviceCenter) {
+            targetCenter = linkedAppointment.serviceCenter;
+          }
         }
       } catch (e) {
         // silently ignore lookup failure
@@ -96,6 +119,7 @@ async function createPayment(req, res) {
 
     const payment = await Payment.create({
       customerId: resolvedCustomerId,
+      serviceCenter: targetCenter,
       customerName: customerName.trim(),
       appointmentId: (appointmentId || '').trim(),
       serviceName: (serviceName || '').trim(),
@@ -269,6 +293,10 @@ async function checkAndSendServiceReminders(req, res) {
 async function updatePayment(req, res) {
   try {
     const { id } = req.params;
+    const filter = { _id: id };
+    if (req.user?.serviceCenter) {
+      filter.serviceCenter = req.user.serviceCenter;
+    }
     const { status, paymentMethod, description, discount, amount } = req.body || {};
 
     const updateFields = {};
@@ -278,7 +306,7 @@ async function updatePayment(req, res) {
     if (discount !== undefined) updateFields.discount = parseFloat(discount);
     if (amount !== undefined) updateFields.amount = parseFloat(amount);
 
-    const updated = await Payment.findByIdAndUpdate(id, updateFields, { new: true });
+    const updated = await Payment.findOneAndUpdate(filter, updateFields, { new: true });
     if (!updated) {
       return res.status(404).json({ error: 'Payment not found' });
     }
@@ -292,7 +320,11 @@ async function updatePayment(req, res) {
 async function deletePayment(req, res) {
   try {
     const { id } = req.params;
-    const deleted = await Payment.findByIdAndDelete(id);
+    const filter = { _id: id };
+    if (req.user?.serviceCenter) {
+      filter.serviceCenter = req.user.serviceCenter;
+    }
+    const deleted = await Payment.findOneAndDelete(filter);
     if (!deleted) {
       return res.status(404).json({ error: 'Payment not found' });
     }

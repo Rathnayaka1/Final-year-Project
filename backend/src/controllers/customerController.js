@@ -160,9 +160,10 @@ async function getLoyaltySummary(req, res) {
 }
 
 async function addLoyaltyPoints(req, res) {
-  const { customerId, points: rawPoints, note } = req.body;
+  const { customerId, points: rawPoints, note, serviceCenterId } = req.body;
   const points = Number(rawPoints);
   const transactionNote = note || 'Points added by admin';
+  const targetCenter = req.user?.serviceCenter || serviceCenterId || null;
 
   if (!customerId) {
     return res.status(400).json({ error: 'Customer ID is required' });
@@ -178,6 +179,23 @@ async function addLoyaltyPoints(req, res) {
       return res.status(404).json({ error: 'Customer not found' });
     }
 
+    if (!customer.branchLoyalty) {
+      customer.branchLoyalty = [];
+    }
+
+    let branchPoints = Math.floor(points);
+    if (targetCenter) {
+      let branchRec = customer.branchLoyalty.find(
+        b => b.serviceCenter && b.serviceCenter.toString() === targetCenter.toString()
+      );
+      if (!branchRec) {
+        branchRec = { serviceCenter: targetCenter, points: 0 };
+        customer.branchLoyalty.push(branchRec);
+      }
+      branchRec.points = Math.max(0, (branchRec.points || 0) + Math.floor(points));
+      branchPoints = branchRec.points;
+    }
+
     customer.loyaltyPoints = (customer.loyaltyPoints || 0) + Math.floor(points);
     if (!customer.loyaltyTransactions) {
       customer.loyaltyTransactions = [];
@@ -185,12 +203,13 @@ async function addLoyaltyPoints(req, res) {
     customer.loyaltyTransactions.push({
       type: 'earn',
       points: Math.floor(points),
+      serviceCenter: targetCenter,
       note: transactionNote
     });
     await customer.save();
 
     return res.status(200).json({
-      loyaltyPoints: customer.loyaltyPoints,
+      loyaltyPoints: targetCenter ? branchPoints : customer.loyaltyPoints,
       transactions: customer.loyaltyTransactions.slice(-20).reverse()
     });
   } catch (error) {
@@ -199,9 +218,10 @@ async function addLoyaltyPoints(req, res) {
 }
 
 async function useLoyaltyPoints(req, res) {
-  const { customerId, points: rawPoints, note, pendingEarnedPoints } = req.body;
+  const { customerId, points: rawPoints, note, pendingEarnedPoints, serviceCenterId } = req.body;
   const points = Number(rawPoints);
   const transactionNote = note || 'Points redeemed for discount';
+  const targetCenter = req.user?.serviceCenter || serviceCenterId || null;
 
   if (!customerId) {
     return res.status(400).json({ error: 'Customer ID is required' });
@@ -211,7 +231,6 @@ async function useLoyaltyPoints(req, res) {
     return res.status(400).json({ error: 'Points must be a positive number' });
   }
 
-  // උපරිම පොයින්ට්ස් 10ක සීමාව (Max 10 points limit validation)
   if (points > 10) {
     return res.status(400).json({ error: 'You can only redeem a maximum of 10 points at a time' });
   }
@@ -224,31 +243,52 @@ async function useLoyaltyPoints(req, res) {
 
     const redeemPoints = Math.floor(points);
     const pendingEarned = Number(pendingEarnedPoints || 0);
-    const currentStored = Math.max(0, customer.loyaltyPoints || 0);
-    const totalAvailable = currentStored + pendingEarned;
 
-    if (totalAvailable < redeemPoints) {
-      return res.status(400).json({ error: 'Not enough loyalty points' });
+    let currentStored = Math.max(0, customer.loyaltyPoints || 0);
+    let branchRec = null;
+
+    if (targetCenter) {
+      if (!customer.branchLoyalty) customer.branchLoyalty = [];
+      branchRec = customer.branchLoyalty.find(
+        b => b.serviceCenter && b.serviceCenter.toString() === targetCenter.toString()
+      );
+      currentStored = Math.max(0, branchRec ? branchRec.points : 0);
     }
 
-    // 1 point = LKR 50 discount calculation
+    const totalAvailable = currentStored + pendingEarned;
+    if (totalAvailable < redeemPoints) {
+      return res.status(400).json({
+        error: targetCenter
+          ? `Not enough loyalty points at this service center (Available: ${currentStored} points).`
+          : 'Not enough loyalty points'
+      });
+    }
+
     const discountAmount = redeemPoints * 50;
 
-    // Calculate updated loyalty points after earning pending bill points and deducting redeemed points
-    customer.loyaltyPoints = Math.max(0, currentStored + pendingEarned - redeemPoints);
+    if (targetCenter) {
+      if (!branchRec) {
+        branchRec = { serviceCenter: targetCenter, points: 0 };
+        customer.branchLoyalty.push(branchRec);
+      }
+      branchRec.points = Math.max(0, currentStored + pendingEarned - redeemPoints);
+    }
+
+    customer.loyaltyPoints = Math.max(0, (customer.loyaltyPoints || 0) + pendingEarned - redeemPoints);
     if (!customer.loyaltyTransactions) {
       customer.loyaltyTransactions = [];
     }
     customer.loyaltyTransactions.push({
       type: 'redeem',
       points: redeemPoints,
+      serviceCenter: targetCenter,
       note: `${transactionNote} (Discount: LKR ${discountAmount})`
     });
     await customer.save();
 
     return res.status(200).json({
       success: true,
-      loyaltyPoints: customer.loyaltyPoints,
+      loyaltyPoints: targetCenter && branchRec ? branchRec.points : customer.loyaltyPoints,
       discountAmount: discountAmount,
       transactions: customer.loyaltyTransactions.slice(-20).reverse()
     });
@@ -259,27 +299,53 @@ async function useLoyaltyPoints(req, res) {
 
 async function listCustomerLoyalty(req, res) {
   try {
+    const targetCenter = req.user?.serviceCenter || req.query.serviceCenterId || null;
     const customers = await Customer.find()
-      .select('name email phone loyaltyPoints loyaltyTransactions createdAt')
-      .sort({ loyaltyPoints: -1, createdAt: -1 });
+      .select('name email phone loyaltyPoints branchLoyalty loyaltyTransactions createdAt')
+      .sort({ createdAt: -1 });
 
-    const rows = customers.map((customer) => ({
-      id: customer._id,
-      name: customer.name,
-      email: customer.email,
-      phone: customer.phone,
-      loyaltyPoints: Math.max(0, customer.loyaltyPoints || 0),
-      transactionCount: customer.loyaltyTransactions?.length || 0,
-      transactions: (customer.loyaltyTransactions || []).slice(-5).map(t => ({
-        ...t.toObject(),
-        customerName: customer.name
-      })),
-      lastTransactionAt:
-        customer.loyaltyTransactions?.length > 0
-          ? customer.loyaltyTransactions[customer.loyaltyTransactions.length - 1].createdAt
-          : null
-    }));
+    const rows = [];
+    for (const customer of customers) {
+      let points = Math.max(0, customer.loyaltyPoints || 0);
+      let transactions = customer.loyaltyTransactions || [];
 
+      if (targetCenter) {
+        const centerStr = targetCenter.toString();
+        const branchRec = (customer.branchLoyalty || []).find(
+          b => b.serviceCenter && b.serviceCenter.toString() === centerStr
+        );
+        const branchTx = transactions.filter(
+          t => t.serviceCenter && t.serviceCenter.toString() === centerStr
+        );
+        const branchPoints = Math.max(0, branchRec ? branchRec.points : 0);
+
+        if (branchPoints === 0 && branchTx.length === 0) {
+          continue;
+        }
+
+        points = branchPoints;
+        transactions = branchTx;
+      }
+
+      rows.push({
+        id: customer._id,
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone,
+        loyaltyPoints: points,
+        transactionCount: transactions.length,
+        transactions: transactions.slice(-5).map(t => ({
+          ...(typeof t.toObject === 'function' ? t.toObject() : t),
+          customerName: customer.name
+        })),
+        lastTransactionAt:
+          transactions.length > 0
+            ? transactions[transactions.length - 1].createdAt
+            : null
+      });
+    }
+
+    rows.sort((a, b) => b.loyaltyPoints - a.loyaltyPoints);
     return res.status(200).json({ customers: rows });
   } catch (error) {
     return res.status(500).json({ error: error.message });

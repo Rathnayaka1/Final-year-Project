@@ -1,9 +1,16 @@
 const Stock = require('../models/Stock');
 
-// GET /api/stocks — get all stocks
+// GET /api/stocks — get all stocks for user's service center
 exports.getStocks = async (req, res) => {
   try {
-    const stocks = await Stock.find().sort({ createdAt: -1 });
+    const filter = {};
+    if (req.user?.serviceCenter) {
+      filter.serviceCenter = req.user.serviceCenter;
+    } else if (req.query.serviceCenterId) {
+      filter.serviceCenter = req.query.serviceCenterId;
+    }
+
+    const stocks = await Stock.find(filter).sort({ createdAt: -1 });
     res.status(200).json({ stocks });
   } catch (err) {
     console.error('getStocks error:', err);
@@ -14,20 +21,24 @@ exports.getStocks = async (req, res) => {
 // POST /api/stocks — create a new stock item
 exports.createStock = async (req, res) => {
   try {
-    const { partName, partNumber, quantity, minQuantity, unitPrice, supplier, unit, forecastItemId } = req.body;
+    const { partName, partNumber, quantity, minQuantity, unitPrice, supplier, unit, forecastItemId, serviceCenter } = req.body;
 
     if (!partName || !partNumber) {
       return res.status(400).json({ error: 'partName and partNumber are required' });
     }
 
+    const targetCenter = req.user?.serviceCenter || serviceCenter || null;
+
     const stock = await Stock.create({
       partName,
       partNumber,
+      serviceCenter: targetCenter,
       quantity: Number(quantity) || 0,
       minQuantity: Number(minQuantity) || 10,
       unitPrice: Number(unitPrice) || 0,
       supplier: supplier || '',
-      unit: unit || '',forecastItemId: forecastItemId || '',
+      unit: unit || '',
+      forecastItemId: forecastItemId || '',
     });
 
     res.status(201).json({ stock });
@@ -46,6 +57,11 @@ exports.updateStock = async (req, res) => {
     const { id } = req.params;
     const { partName, partNumber, quantity, minQuantity, unitPrice, supplier, unit, forecastItemId } = req.body;
 
+    const queryFilter = { _id: id };
+    if (req.user?.serviceCenter) {
+      queryFilter.serviceCenter = req.user.serviceCenter;
+    }
+
     const updateData = {};
     if (unit !== undefined) updateData.unit = unit;
     if (forecastItemId !== undefined) updateData.forecastItemId = forecastItemId;
@@ -56,7 +72,7 @@ exports.updateStock = async (req, res) => {
     if (unitPrice !== undefined) updateData.unitPrice = Number(unitPrice);
     if (supplier !== undefined) updateData.supplier = supplier;
 
-    const stock = await Stock.findByIdAndUpdate(id, updateData, {
+    const stock = await Stock.findOneAndUpdate(queryFilter, updateData, {
       new: true,
       runValidators: true,
     });
@@ -79,7 +95,12 @@ exports.updateStock = async (req, res) => {
 exports.deleteStock = async (req, res) => {
   try {
     const { id } = req.params;
-    const stock = await Stock.findByIdAndDelete(id);
+    const queryFilter = { _id: id };
+    if (req.user?.serviceCenter) {
+      queryFilter.serviceCenter = req.user.serviceCenter;
+    }
+
+    const stock = await Stock.findOneAndDelete(queryFilter);
 
     if (!stock) {
       return res.status(404).json({ error: 'Stock item not found' });
