@@ -5,14 +5,14 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const apiTarget =
     env.VITE_API_URL?.replace(/\/api\/?$/, '').replace('localhost', '127.0.0.1') ||
-    'http://127.0.0.1:5008';
+    'http://localhost:5004';
 
   return {
     plugins: [react()],
     server: {
-      host: '127.0.0.1',
-      port: 5180,
-      strictPort: true,
+      host: 'localhost',
+      port: 5173,
+      strictPort: false,
       open: false,
       proxy: {
         '/api': {
