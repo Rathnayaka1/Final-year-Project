@@ -2,9 +2,18 @@ import React, { useMemo, useState, useEffect } from 'react';
 
 const defaultCenter = { lat: 6.9271, lng: 79.8612 };
 
-export default function ServiceCenterManager({ serviceCenters, onUpdate, loading }) {
-  // Since each admin manages their own service center, pick the current center
-  const currentCenter = serviceCenters && serviceCenters.length > 0 ? serviceCenters[0] : null;
+export default function ServiceCenterManager({ serviceCenters, currentCenterId, onUpdate, loading }) {
+  // Find current center matching logged-in user's center ID, otherwise fall back to first item
+  const currentCenter = useMemo(() => {
+    if (!serviceCenters || serviceCenters.length === 0) return null;
+    if (currentCenterId) {
+      const match = serviceCenters.find(
+        (c) => String(c.id || c._id) === String(currentCenterId)
+      );
+      if (match) return match;
+    }
+    return serviceCenters[0];
+  }, [serviceCenters, currentCenterId]);
 
   const [form, setForm] = useState({
     name: '',
@@ -18,12 +27,98 @@ export default function ServiceCenterManager({ serviceCenters, onUpdate, loading
   });
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [locLoading, setLocLoading] = useState(false);
+  const [locSuccess, setLocSuccess] = useState('');
+  const [locError, setLocError] = useState('');
+
+  const handleFindCoordinates = async () => {
+    const address = form.address.trim();
+    if (!address) {
+      setLocError('Please enter a service center address first.');
+      setTimeout(() => setLocError(''), 4000);
+      return;
+    }
+    setLocLoading(true);
+    setLocError('');
+    setLocSuccess('');
+
+    try {
+      // Build candidate search queries (from full address down to town/city)
+      const cleanAddress = address.replace(/\s+/g, ' ');
+      const segments = cleanAddress.split(',').map(s => s.trim()).filter(Boolean);
+      
+      const candidateQueries = [];
+      // 1. Full address with Sri Lanka
+      candidateQueries.push(cleanAddress.toLowerCase().includes('sri lanka') ? cleanAddress : `${cleanAddress}, Sri Lanka`);
+      // 2. Full address as entered
+      candidateQueries.push(cleanAddress);
+      
+      // 3. Progressive subsets if commas exist (e.g. drop house/building number)
+      if (segments.length > 1) {
+        // Skip first segment (house number)
+        const withoutFirst = segments.slice(1).join(', ');
+        candidateQueries.push(withoutFirst.toLowerCase().includes('sri lanka') ? withoutFirst : `${withoutFirst}, Sri Lanka`);
+        // Last segment (city/district/area)
+        const lastSegment = segments[segments.length - 1];
+        candidateQueries.push(lastSegment.toLowerCase().includes('sri lanka') ? lastSegment : `${lastSegment}, Sri Lanka`);
+        candidateQueries.push(lastSegment);
+      }
+
+      let found = null;
+      for (const query of candidateQueries) {
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`, {
+            headers: { 'Accept': 'application/json' }
+          });
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            found = data[0];
+            break;
+          }
+        } catch (e) {
+          // continue to next query
+        }
+      }
+
+      if (found) {
+        const lat = parseFloat(found.lat).toFixed(6);
+        const lng = parseFloat(found.lon).toFixed(6);
+        setForm((prev) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng
+        }));
+        const placeName = found.display_name.split(',')[0];
+        setLocSuccess(`📍 Pinned to "${placeName}": (${lat}, ${lng}) — Latitude & Longitude auto-filled!`);
+        setTimeout(() => setLocSuccess(''), 7000);
+      } else {
+        setLocError('Could not find map location for this address. Please try adding city/town or enter coordinates manually.');
+        setTimeout(() => setLocError(''), 6000);
+      }
+    } catch (err) {
+      setLocError('Failed to search coordinates. Please enter manually.');
+      setTimeout(() => setLocError(''), 5000);
+    } finally {
+      setLocLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (currentCenter) {
+      // If address is an initial dummy text, leave it blank so admin types manually
+      const isDummyAddress = (addr) => {
+        if (!addr) return true;
+        const lower = addr.toLowerCase().trim();
+        return (
+          lower.includes('123 main street') ||
+          lower.includes('456 west avenue') ||
+          lower.includes('main workshop')
+        );
+      };
+
       setForm({
         name: currentCenter.name || '',
-        address: currentCenter.address || '',
+        address: isDummyAddress(currentCenter.address) ? '' : (currentCenter.address || ''),
         phone: currentCenter.phone || '',
         email: currentCenter.email || '',
         latitude: currentCenter.location?.coordinates?.[1]?.toString() || '6.9271',
@@ -156,14 +251,93 @@ export default function ServiceCenterManager({ serviceCenters, onUpdate, loading
 
           <label>
             Service Center Address *
-            <input 
-              name="address" 
-              value={form.address} 
-              onChange={handleChange} 
-              placeholder="e.g. 123 Colombo Road, Kandy"
-              required 
-            />
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <input 
+                name="address" 
+                value={form.address} 
+                onChange={handleChange} 
+                placeholder="Type service center address manually (e.g. 123 Galle Road, Colombo 03)"
+                required 
+                style={{ width: '100%', paddingRight: form.address ? '2.5rem' : '0.75rem' }}
+              />
+              {form.address && (
+                <button
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, address: '' }))}
+                  title="Clear address to re-type manually"
+                  style={{
+                    position: 'absolute',
+                    right: '8px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#94a3b8',
+                    cursor: 'pointer',
+                    fontSize: '1.1rem',
+                    padding: '2px 6px',
+                    lineHeight: 1
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+            <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px', display: 'block' }}>
+              ✍️ Enter address manually, then click &quot;Pin on Map&quot; to auto-detect coordinates.
+            </span>
           </label>
+
+          <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.5rem', marginBottom: '1rem' }}>
+            <button
+              type="button"
+              onClick={handleFindCoordinates}
+              disabled={locLoading || !form.address.trim()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                cursor: locLoading ? 'wait' : 'pointer',
+                backgroundColor: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                color: '#1d4ed8'
+              }}
+            >
+              {locLoading ? '⏳ Searching Map...' : '📍 Pin on Map'}
+            </button>
+          </div>
+
+          {locSuccess && (
+            <div style={{
+              backgroundColor: '#dcfce7',
+              color: '#166534',
+              padding: '0.65rem 1rem',
+              borderRadius: '6px',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              border: '1px solid #bbf7d0'
+            }}>
+              ✅ {locSuccess}
+            </div>
+          )}
+
+          {locError && (
+            <div style={{
+              backgroundColor: '#fee2e2',
+              color: '#991b1b',
+              padding: '0.65rem 1rem',
+              borderRadius: '6px',
+              marginBottom: '1rem',
+              fontSize: '0.875rem',
+              fontWeight: '500',
+              border: '1px solid #fecaca'
+            }}>
+              ⚠️ {locError}
+            </div>
+          )}
 
           <div className="map-location-section">
             <div className="map-preview-header">
@@ -192,7 +366,7 @@ export default function ServiceCenterManager({ serviceCenters, onUpdate, loading
 
           <div className="form-grid">
             <label>
-              Latitude (Map Coordinate) *
+              Latitude (Auto-filled from Pin) *
               <input 
                 name="latitude" 
                 type="number"
@@ -204,7 +378,7 @@ export default function ServiceCenterManager({ serviceCenters, onUpdate, loading
               />
             </label>
             <label>
-              Longitude (Map Coordinate) *
+              Longitude (Auto-filled from Pin) *
               <input 
                 name="longitude" 
                 type="number"

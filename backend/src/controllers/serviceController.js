@@ -1,13 +1,18 @@
 const Service = require('../models/Service');
 
 function serializeService(doc) {
-  const service = doc.toObject({ versionKey: false });
-  service.id = service._id;
+  if (!doc) return null;
+  const service = doc.toObject ? doc.toObject({ versionKey: false }) : { ...doc };
+  service.id = (service._id || service.id)?.toString();
   delete service._id;
 
-  if (service.serviceCenter && service.serviceCenter._id) {
-    service.serviceCenter.id = service.serviceCenter._id;
-    delete service.serviceCenter._id;
+  if (service.serviceCenter) {
+    if (typeof service.serviceCenter === 'object' && service.serviceCenter._id) {
+      service.serviceCenter.id = service.serviceCenter._id.toString();
+      delete service.serviceCenter._id;
+    } else if (typeof service.serviceCenter === 'object' && typeof service.serviceCenter.toString === 'function') {
+      service.serviceCenter = service.serviceCenter.toString();
+    }
   }
 
   return service;
@@ -32,24 +37,38 @@ async function getServices(req, res) {
 async function createServiceHandler(req, res) {
   const { name, description, duration, basePrice, vehicleType, category, serviceCenter } = req.body || {};
 
-  if (!name) {
+  if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Service name is required' });
   }
 
   const targetCenter = req.user?.serviceCenter || serviceCenter || null;
+  const cleanName = name.trim();
 
   try {
-    const service = await Service.create({
-      name,
-      description,
-      duration,
-      basePrice,
+    // Check for duplicate service name within the same service center
+    const duplicateFilter = {
+      name: { $regex: new RegExp(`^${cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      serviceCenter: targetCenter
+    };
+    const existing = await Service.findOne(duplicateFilter);
+    if (existing) {
+      return res.status(400).json({ error: `Service "${cleanName}" already exists for this service center.` });
+    }
+
+    const serviceDoc = await Service.create({
+      name: cleanName,
+      description: description || '',
+      duration: Number(duration) || 30,
+      basePrice: Number(basePrice) || 0,
       vehicleType: vehicleType || 'All',
       category: category || 'General',
       serviceCenter: targetCenter
     });
-    return res.status(201).json({ service: serializeService(service) });
+
+    const populated = await Service.findById(serviceDoc._id).populate('serviceCenter', 'name address');
+    return res.status(201).json({ service: serializeService(populated || serviceDoc) });
   } catch (error) {
+    console.error('Error creating service:', error);
     return res.status(500).json({ error: error.message });
   }
 }
@@ -64,18 +83,30 @@ async function updateServiceHandler(req, res) {
   }
 
   const updateDoc = {};
-  if (name !== undefined) updateDoc.name = name;
+  if (name !== undefined) updateDoc.name = name.trim();
   if (description !== undefined) updateDoc.description = description;
-  if (duration !== undefined) updateDoc.duration = duration;
-  if (basePrice !== undefined) updateDoc.basePrice = basePrice;
+  if (duration !== undefined) updateDoc.duration = Number(duration) || 30;
+  if (basePrice !== undefined) updateDoc.basePrice = Number(basePrice) || 0;
   if (vehicleType !== undefined) updateDoc.vehicleType = vehicleType;
   if (category !== undefined) updateDoc.category = category;
 
   try {
+    if (updateDoc.name) {
+      const duplicateFilter = {
+        _id: { $ne: id },
+        name: { $regex: new RegExp(`^${updateDoc.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        serviceCenter: req.user?.serviceCenter || null
+      };
+      const existing = await Service.findOne(duplicateFilter);
+      if (existing) {
+        return res.status(400).json({ error: `Service "${updateDoc.name}" already exists for this service center.` });
+      }
+    }
+
     const service = await Service.findOneAndUpdate(queryFilter, updateDoc, {
       new: true,
       runValidators: true
-    });
+    }).populate('serviceCenter', 'name address');
 
     if (!service) {
       return res.status(404).json({ error: 'Service not found' });
@@ -83,6 +114,7 @@ async function updateServiceHandler(req, res) {
 
     return res.status(200).json({ service: serializeService(service) });
   } catch (error) {
+    console.error('Error updating service:', error);
     return res.status(400).json({ error: error.message });
   }
 }
@@ -113,3 +145,4 @@ module.exports = {
   updateService: updateServiceHandler,
   deleteService: deleteServiceHandler
 };
+

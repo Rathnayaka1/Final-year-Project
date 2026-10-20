@@ -60,8 +60,17 @@ export default function ServiceManager({ services, onCreate, onUpdate, onDelete,
     const mins = parseInt(form.durationMinutes || 0, 10);
     const totalDuration = (hrs * 60) + mins;
 
+    const trimmedName = form.name.trim();
+    const isDuplicate = services.some(
+      (s) => s.id !== editingId && (s.name || '').toLowerCase().trim() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) {
+      alert(`A service named "${trimmedName}" already exists in your catalog.`);
+      return;
+    }
+
     const payload = {
-      name: form.name,
+      name: trimmedName,
       description: form.description,
       duration: totalDuration > 0 ? totalDuration : 30,
       basePrice: Number(form.basePrice) || 0,

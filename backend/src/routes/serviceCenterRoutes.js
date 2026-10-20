@@ -6,12 +6,12 @@ const {
   createServiceCenter,
   updateServiceCenter
 } = require('../controllers/serviceCenterController');
-const { authenticate, requireAdmin } = require('../middlewares/authMiddleware');
+const { authenticate, optionalAuth, requireAdmin } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
 router.get('/nearby', getNearbyServiceCenters);
-router.get('/', listServiceCenters);
+router.get('/', optionalAuth, listServiceCenters);
 router.get('/:id', getServiceCenter);
 router.post('/', authenticate, requireAdmin, createServiceCenter);
 router.patch('/:id', authenticate, requireAdmin, updateServiceCenter);

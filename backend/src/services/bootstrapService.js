@@ -32,8 +32,8 @@ async function ensureServiceCenters() {
   const defaultCenters = [
     {
       name: 'Downtown Service Center',
-      address: '123 Main Street, Downtown',
-      location: { type: 'Point', coordinates: [80.2167, 6.9271] },
+      address: '123 Main Street, Colombo 01',
+      location: { type: 'Point', coordinates: [79.8450, 6.9350] },
       phone: '+94112345678',
       email: 'downtown@servicecenter.dev',
       operatingHours: {
@@ -53,8 +53,8 @@ async function ensureServiceCenters() {
     },
     {
       name: 'Westside Auto Care',
-      address: '456 West Avenue, Westside',
-      location: { type: 'Point', coordinates: [80.1950, 6.9497] },
+      address: '456 West Avenue, Colombo 07',
+      location: { type: 'Point', coordinates: [79.8650, 6.9100] },
       phone: '+94112345679',
       email: 'westside@servicecenter.dev',
       operatingHours: {

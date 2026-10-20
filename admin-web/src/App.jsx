@@ -38,23 +38,55 @@ import {
   deletePaymentRecord
 } from './services/api';
 
+function featureToTab(feature) {
+  if (feature === 'serviceCenters') return 'centers';
+  if (feature === 'customerLoyalty') return 'loyalty';
+  return feature || 'centers';
+}
+
+function getDefaultTabForRole(role) {
+  const accessibleFeatures = getAccessibleFeatures(role);
+  if (!accessibleFeatures || accessibleFeatures.length === 0) return 'centers';
+  return featureToTab(accessibleFeatures[0]);
+}
+
 export default function App() {
   const [auth, setAuth] = useState(() => {
     const cached = window.localStorage.getItem('ssc_admin_session');
     return cached ? JSON.parse(cached) : null;
   });
 
-  // Initialize active tab based on accessible features
+  // Initialize active tab based on accessible features or saved preference
   const [activeTab, setActiveTab] = useState(() => {
+    const savedTab = window.localStorage.getItem('ssc_active_tab');
+    const validTabs = ['centers', 'services', 'stocks', 'appointments', 'technicians', 'payments', 'loyalty'];
+    if (savedTab && validTabs.includes(savedTab)) {
+      return savedTab;
+    }
     const cached = window.localStorage.getItem('ssc_admin_session');
     if (cached) {
-      const authData = JSON.parse(cached);
-      const userRole = authData?.user?.role;
-      const accessibleFeatures = getAccessibleFeatures(userRole);
-      return accessibleFeatures.length > 0 ? accessibleFeatures[0] : 'services';
+      try {
+        const authData = JSON.parse(cached);
+        const userRole = authData?.user?.role;
+        return getDefaultTabForRole(userRole);
+      } catch (e) {
+        return 'centers';
+      }
     }
-    return 'services';
+    return 'centers';
   });
+
+  const handleTabChange = (tab) => {
+    const target = featureToTab(tab);
+    setActiveTab(target);
+    window.localStorage.setItem('ssc_active_tab', target);
+  };
+
+  // Auto-correct any legacy or unmapped tab names so user never sees a blank page
+  useEffect(() => {
+    if (activeTab === 'serviceCenters') handleTabChange('centers');
+    else if (activeTab === 'customerLoyalty') handleTabChange('loyalty');
+  }, [activeTab]);
 
   const [serviceCenters, setServiceCenters] = useState([]);
   const [services, setServices] = useState([]);
@@ -193,8 +225,8 @@ export default function App() {
       window.localStorage.setItem('ssc_admin_session', JSON.stringify(result));
       // Reset activeTab to new user's first accessible feature
       const newRole = result?.user?.role;
-      const firstFeature = getAccessibleFeatures(newRole)[0] || 'services';
-      setActiveTab(firstFeature);
+      const firstTab = getDefaultTabForRole(newRole);
+      handleTabChange(firstTab);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -209,8 +241,8 @@ export default function App() {
       const result = await registerServiceCenter(registrationData);
       setAuth(result);
       window.localStorage.setItem('ssc_admin_session', JSON.stringify(result));
-      const firstFeature = getAccessibleFeatures(result?.user?.role)[0] || 'services';
-      setActiveTab(firstFeature);
+      const firstTab = getDefaultTabForRole(result?.user?.role);
+      handleTabChange(firstTab);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -240,6 +272,16 @@ export default function App() {
       setServiceCenters((prev) =>
         prev.map((center) => (center.id === id ? serviceCenter : center))
       );
+      if (payload.name && auth?.user?.serviceCenter === id) {
+        setAuth((prev) => {
+          const updated = {
+            ...prev,
+            user: { ...prev.user, serviceCenterName: payload.name }
+          };
+          window.localStorage.setItem('ssc_admin_session', JSON.stringify(updated));
+          return updated;
+        });
+      }
       if (onSuccess) onSuccess();
     } catch (err) {
       setError(err.message);
@@ -481,6 +523,7 @@ export default function App() {
     setError('');
     window.localStorage.removeItem('ssc_admin_session');
     window.localStorage.removeItem('ssc_admin_payments');
+    window.localStorage.removeItem('ssc_active_tab');
   };
 
   if (!token) {
@@ -502,7 +545,7 @@ export default function App() {
         <div>
           <h1>🚗 {auth.user.serviceCenterName || 'Service Center Admin'}</h1>
           <p className="muted">
-            {auth.user.serviceCenterName 
+            {auth.user.serviceCenterName
               ? `Workspace scoped to ${auth.user.serviceCenterName} — inventory, queues & staff isolated`
               : 'Manage services, inventory, appointments, technicians and payments'}
           </p>
@@ -511,8 +554,8 @@ export default function App() {
           <div className="user-info">
             <div className="user-badge">{auth.user.name}</div>
             {auth.user.serviceCenterName && (
-              <div 
-                className="center-badge" 
+              <div
+                className="center-badge"
                 style={{
                   background: '#e0f2fe',
                   color: '#0369a1',
@@ -545,7 +588,7 @@ export default function App() {
         {hasPermission(auth.user.role, 'serviceCenters') && (
           <button
             className={`tab-button ${activeTab === 'centers' ? 'active' : ''}`}
-            onClick={() => setActiveTab('centers')}
+            onClick={() => handleTabChange('centers')}
           >
             🏢 Center Registration
           </button>
@@ -553,7 +596,7 @@ export default function App() {
         {hasPermission(auth.user.role, 'services') && (
           <button
             className={`tab-button ${activeTab === 'services' ? 'active' : ''}`}
-            onClick={() => setActiveTab('services')}
+            onClick={() => handleTabChange('services')}
           >
             🛠️ Services
           </button>
@@ -561,7 +604,7 @@ export default function App() {
         {hasPermission(auth.user.role, 'stocks') && (
           <button
             className={`tab-button ${activeTab === 'stocks' ? 'active' : ''}`}
-            onClick={() => setActiveTab('stocks')}
+            onClick={() => handleTabChange('stocks')}
           >
             📦 Inventory
           </button>
@@ -569,7 +612,7 @@ export default function App() {
         {hasPermission(auth.user.role, 'appointments') && (
           <button
             className={`tab-button ${activeTab === 'appointments' ? 'active' : ''}`}
-            onClick={() => setActiveTab('appointments')}
+            onClick={() => handleTabChange('appointments')}
           >
             📅 Appointments
           </button>
@@ -577,7 +620,7 @@ export default function App() {
         {hasPermission(auth.user.role, 'technicians') && (
           <button
             className={`tab-button ${activeTab === 'technicians' ? 'active' : ''}`}
-            onClick={() => setActiveTab('technicians')}
+            onClick={() => handleTabChange('technicians')}
           >
             👨‍🔧 Technicians
           </button>
@@ -585,7 +628,7 @@ export default function App() {
         {hasPermission(auth.user.role, 'payments') && (
           <button
             className={`tab-button ${activeTab === 'payments' ? 'active' : ''}`}
-            onClick={() => setActiveTab('payments')}
+            onClick={() => handleTabChange('payments')}
           >
             💳 Payments
           </button>
@@ -593,7 +636,7 @@ export default function App() {
         {hasPermission(auth.user.role, 'customerLoyalty') && (
           <button
             className={`tab-button ${activeTab === 'loyalty' ? 'active' : ''}`}
-            onClick={() => setActiveTab('loyalty')}
+            onClick={() => handleTabChange('loyalty')}
           >
             🎯 Loyalty
           </button>
@@ -653,6 +696,7 @@ export default function App() {
           <ProtectedFeature userRole={auth.user.role} feature="serviceCenters">
             <ServiceCenterManager
               serviceCenters={serviceCenters}
+              currentCenterId={auth?.user?.serviceCenter}
               onCreate={handleServiceCenterCreate}
               onUpdate={handleServiceCenterUpdate}
               loading={loading}

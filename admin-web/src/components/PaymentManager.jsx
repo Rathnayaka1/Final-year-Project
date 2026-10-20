@@ -110,12 +110,16 @@ export default function PaymentManager({
           (apt.customerPhone && c.phone === apt.customerPhone)
       );
 
-      let basePrice = apt.estimatedCost || apt.actualCost || 0;
-      if (!basePrice && apt.serviceName) {
-        const srv = services.find(
-          (s) => s.name?.toLowerCase() === apt.serviceName?.toLowerCase()
-        );
-        if (srv && srv.basePrice) basePrice = srv.basePrice;
+      let basePrice = Number(apt.estimatedCost ?? apt.actualCost ?? 0);
+      if (basePrice <= 0 && apt.serviceName) {
+        const cleanAptService = apt.serviceName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const srv = services.find((s) => {
+          const cleanSrv = (s.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+          return cleanSrv === cleanAptService || cleanSrv.includes(cleanAptService) || cleanAptService.includes(cleanSrv);
+        });
+        if (srv && Number(srv.basePrice) > 0) {
+          basePrice = Number(srv.basePrice);
+        }
       }
 
       setForm((prev) => ({
