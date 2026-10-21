@@ -84,8 +84,13 @@ export default function App() {
 
   // Auto-correct any legacy or unmapped tab names so user never sees a blank page
   useEffect(() => {
-    if (activeTab === 'serviceCenters') handleTabChange('centers');
-    else if (activeTab === 'customerLoyalty') handleTabChange('loyalty');
+    if (activeTab === 'serviceCenters') {
+      setActiveTab('centers');
+      window.localStorage.setItem('ssc_active_tab', 'centers');
+    } else if (activeTab === 'customerLoyalty') {
+      setActiveTab('loyalty');
+      window.localStorage.setItem('ssc_active_tab', 'loyalty');
+    }
   }, [activeTab]);
 
   const [serviceCenters, setServiceCenters] = useState([]);
