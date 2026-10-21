@@ -448,6 +448,28 @@ async function resetPassword(req, res) {
   }
 }
 
+// ─── List All Customers (for Payment form dropdown) ────────────────────────
+async function listAllCustomers(req, res) {
+  try {
+    const customers = await Customer.find()
+      .select('name email phone loyaltyPoints branchLoyalty')
+      .sort({ name: 1 });
+
+    const rows = customers.map(c => ({
+      id: c._id,
+      name: c.name,
+      email: c.email,
+      phone: c.phone,
+      loyaltyPoints: c.loyaltyPoints || 0,
+      branchLoyalty: c.branchLoyalty || []
+    }));
+
+    return res.status(200).json({ customers: rows });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   register,
   loginCustomer,
@@ -459,5 +481,6 @@ module.exports = {
   listCustomerLoyalty,
   requestPasswordReset,
   verifyResetAccount,
-  resetPassword
+  resetPassword,
+  listAllCustomers
 };

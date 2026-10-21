@@ -99,6 +99,10 @@ export function fetchCustomerLoyalty(token) {
   return request('/customers/admin/loyalty', { token });
 }
 
+export function fetchAllCustomers(token) {
+  return request('/customers/admin/all', { token });
+}
+
 export function earnLoyaltyPoints(customerId, points, note, token) {
   return request('/customers/loyalty/add', {
     method: 'POST',
