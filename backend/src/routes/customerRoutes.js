@@ -8,6 +8,7 @@ const {
   addLoyaltyPoints,
   useLoyaltyPoints,
   listCustomerLoyalty,
+  listAllCustomers,
   requestPasswordReset,
   verifyResetAccount,
   resetPassword
@@ -27,6 +28,7 @@ router.post('/loyalty/add', authenticate, requireRole('admin', 'manager', 'recep
 router.post('/loyalty/use', authenticate, requireRole('admin', 'manager', 'receptionist'), useLoyaltyPoints);
 
 router.get('/admin/loyalty', authenticate, requireRole('admin', 'manager', 'receptionist'), listCustomerLoyalty);
+router.get('/admin/all', authenticate, requireRole('admin', 'manager', 'receptionist'), listAllCustomers);
 router.post('/forgot-password', requestPasswordReset);
 router.post('/verify-reset-account', verifyResetAccount);
 router.post('/reset-password', resetPassword);

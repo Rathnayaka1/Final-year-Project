@@ -21,6 +21,7 @@ const STANDARD_LABOR_TASKS = [
 export default function PaymentManager({
   payments = [],
   customers = [],
+  customerLoyalty = [],
   appointments = [],
   stocks = [],
   services = [],
@@ -131,7 +132,13 @@ export default function PaymentManager({
         serviceCost: basePrice
       }));
 
-      if (cust) setSelectedCustomer(cust);
+      if (cust) {
+        // Get loyalty points from customerLoyalty list (branch-filtered) or fallback to customer record
+        const loyaltyRecord = customerLoyalty.find(
+          l => (l.id || l._id)?.toString() === (cust.id || cust._id)?.toString()
+        );
+        setSelectedCustomer(loyaltyRecord || cust);
+      }
       setAppliedDiscount(0);
       setLoyaltyMessage('');
     }

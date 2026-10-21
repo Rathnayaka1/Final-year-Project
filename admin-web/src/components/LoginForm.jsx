@@ -216,7 +216,7 @@ export default function LoginForm({ onSubmit, onRegister, loading }) {
             >
               {availableCenters.map((center) => (
                 <option key={center.id} value={center.id}>
-                  🏢 {center.name} {center.address ? `— ${center.address}` : ''}
+                  🏢 {center.name}
                 </option>
               ))}
             </select>

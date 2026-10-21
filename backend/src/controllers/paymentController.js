@@ -1,16 +1,24 @@
+const mongoose = require('mongoose');
 const Payment = require('../models/Payment');
 const Appointment = require('../models/Appointment');
 const Stock = require('../models/Stock');
 const { createNotification } = require('./notificationController');
 
 function serializePayment(doc) {
-  const payment = doc.toObject({ versionKey: false });
-  payment.id = payment._id;
+  if (!doc) return null;
+  const payment = typeof doc.toObject === 'function' ? doc.toObject({ versionKey: false }) : { ...doc };
+  payment.id = payment._id ? payment._id.toString() : (payment.id ? payment.id.toString() : '');
   delete payment._id;
 
-  if (payment.serviceCenter && payment.serviceCenter._id) {
-    payment.serviceCenter.id = payment.serviceCenter._id;
-    delete payment.serviceCenter._id;
+  if (payment.serviceCenter) {
+    if (typeof payment.serviceCenter === 'object' && !(payment.serviceCenter instanceof mongoose.Types.ObjectId)) {
+      if (payment.serviceCenter._id) {
+        payment.serviceCenter.id = payment.serviceCenter._id.toString();
+        delete payment.serviceCenter._id;
+      }
+    } else {
+      payment.serviceCenter = payment.serviceCenter.toString();
+    }
   }
 
   return payment;
@@ -306,13 +314,15 @@ async function updatePayment(req, res) {
     if (discount !== undefined) updateFields.discount = parseFloat(discount);
     if (amount !== undefined) updateFields.amount = parseFloat(amount);
 
-    const updated = await Payment.findOneAndUpdate(filter, updateFields, { new: true });
+    const updated = await Payment.findOneAndUpdate(filter, updateFields, { new: true })
+      .populate('serviceCenter', 'name address');
     if (!updated) {
       return res.status(404).json({ error: 'Payment not found' });
     }
 
     return res.status(200).json({ payment: serializePayment(updated) });
   } catch (error) {
+    console.error('ERROR IN updatePayment:', error);
     return res.status(500).json({ error: error.message });
   }
 }

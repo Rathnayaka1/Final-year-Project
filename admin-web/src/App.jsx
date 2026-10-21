@@ -18,6 +18,7 @@ import {
   updateServiceCenter,
   fetchCustomerLoyalty,
   earnLoyaltyPoints,
+  fetchAllCustomers,
   fetchServices,
   createService,
   updateService,
@@ -102,6 +103,7 @@ export default function App() {
   const [payments, setPayments] = useState([]);
 
   const [customerLoyalty, setCustomerLoyalty] = useState([]);
+  const [allCustomers, setAllCustomers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [updatingAppointmentId, setUpdatingAppointmentId] = useState(null);
   const [error, setError] = useState('');
@@ -183,6 +185,16 @@ export default function App() {
         );
       }
 
+      // Always fetch all customers for Payment form dropdown
+      fetchPromises.push(
+        fetchAllCustomers(token)
+          .then(res => ({ type: 'allCustomers', data: res.customers || [] }))
+          .catch(err => {
+            console.warn('Could not fetch all customers:', err.message);
+            return { type: 'allCustomers', data: [] };
+          })
+      );
+
       if (hasPermission(userRole, 'payments')) {
         fetchPromises.push(
           fetchPayments(token)
@@ -203,6 +215,7 @@ export default function App() {
         if (result.type === 'appointments') setAppointments(Array.isArray(result.data) ? result.data : []);
         if (result.type === 'technicians') setTechnicians(Array.isArray(result.data) ? result.data : []);
         if (result.type === 'loyalty') setCustomerLoyalty(result.data);
+        if (result.type === 'allCustomers') setAllCustomers(Array.isArray(result.data) ? result.data : []);
         if (result.type === 'payments' && Array.isArray(result.data)) {
           setPayments(result.data);
         }
@@ -713,7 +726,8 @@ export default function App() {
           <ProtectedFeature userRole={auth.user.role} feature="payments">
             <PaymentManager
               payments={payments}
-              customers={customerLoyalty}
+              customers={allCustomers}
+              customerLoyalty={customerLoyalty}
               appointments={appointments}
               stocks={stocks}
               services={services}
