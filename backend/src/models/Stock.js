@@ -35,7 +35,11 @@ const stockSchema = new mongoose.Schema(
       min: [0, 'Unit price cannot be negative'],
       default: 0,
     },
-    unit: {type:String,enum:['','litre','piece','axle_set','pair','can'],default:''},
+    unit: {
+      type: String,
+      enum: ['', 'litre', 'piece', 'can', 'bottle', 'barrel', 'pair', 'axle_set', 'set', 'pack', 'box', 'meter'],
+      default: 'piece'
+    },
     forecastItemId: {type:String,trim:true,default:''},
     dataOrigin: {type:String,default:'user_inventory'},
     supplier: {
