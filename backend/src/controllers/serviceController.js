@@ -43,16 +43,18 @@ async function createServiceHandler(req, res) {
 
   const targetCenter = req.user?.serviceCenter || serviceCenter || null;
   const cleanName = name.trim();
+  const targetVehicleType = vehicleType || 'All';
 
   try {
-    // Check for duplicate service name within the same service center
+    // Check for duplicate: same service name + same vehicle type within the same service center
     const duplicateFilter = {
       name: { $regex: new RegExp(`^${cleanName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+      vehicleType: targetVehicleType,
       serviceCenter: targetCenter
     };
     const existing = await Service.findOne(duplicateFilter);
     if (existing) {
-      return res.status(400).json({ error: `Service "${cleanName}" already exists for this service center.` });
+      return res.status(400).json({ error: `A service named "${cleanName}" already exists in your catalog for vehicle type "${targetVehicleType}".` });
     }
 
     const serviceDoc = await Service.create({
@@ -60,7 +62,7 @@ async function createServiceHandler(req, res) {
       description: description || '',
       duration: Number(duration) || 30,
       basePrice: Number(basePrice) || 0,
-      vehicleType: vehicleType || 'All',
+      vehicleType: targetVehicleType,
       category: category || 'General',
       serviceCenter: targetCenter
     });
@@ -91,15 +93,20 @@ async function updateServiceHandler(req, res) {
   if (category !== undefined) updateDoc.category = category;
 
   try {
-    if (updateDoc.name) {
+    if (updateDoc.name || updateDoc.vehicleType) {
+      // Fetch current doc to get existing vehicleType if not being updated
+      const currentService = await Service.findById(id).lean();
+      const checkVehicleType = updateDoc.vehicleType || currentService?.vehicleType || 'All';
+      const checkName = updateDoc.name || currentService?.name || '';
       const duplicateFilter = {
         _id: { $ne: id },
-        name: { $regex: new RegExp(`^${updateDoc.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        name: { $regex: new RegExp(`^${checkName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+        vehicleType: checkVehicleType,
         serviceCenter: req.user?.serviceCenter || null
       };
       const existing = await Service.findOne(duplicateFilter);
       if (existing) {
-        return res.status(400).json({ error: `Service "${updateDoc.name}" already exists for this service center.` });
+        return res.status(400).json({ error: `A service named "${checkName}" already exists for vehicle type "${checkVehicleType}" in this service center.` });
       }
     }
 

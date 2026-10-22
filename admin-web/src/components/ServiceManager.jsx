@@ -61,11 +61,15 @@ export default function ServiceManager({ services, onCreate, onUpdate, onDelete,
     const totalDuration = (hrs * 60) + mins;
 
     const trimmedName = form.name.trim();
+    const selectedVehicleType = form.vehicleType || 'All';
     const isDuplicate = services.some(
-      (s) => s.id !== editingId && (s.name || '').toLowerCase().trim() === trimmedName.toLowerCase()
+      (s) =>
+        s.id !== editingId &&
+        (s.name || '').toLowerCase().trim() === trimmedName.toLowerCase() &&
+        (s.vehicleType || 'All').toLowerCase() === selectedVehicleType.toLowerCase()
     );
     if (isDuplicate) {
-      alert(`A service named "${trimmedName}" already exists in your catalog.`);
+      alert(`A service named "${trimmedName}" already exists for vehicle category "${selectedVehicleType}".`);
       return;
     }
 
