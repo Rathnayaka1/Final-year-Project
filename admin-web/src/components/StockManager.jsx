@@ -11,14 +11,17 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
   const notifRef = useRef(null);
   const shownRef = useRef(false);
 
-  const [form, setForm] = useState({
+  const initialForm = {
     partName: '',
     partNumber: '',
     quantity: 0,
     minQuantity: 10,
     unitPrice: 0,
+    unit: 'piece',
     supplier: ''
-  });
+  };
+
+  const [form, setForm] = useState(initialForm);
 
   // ─── Compute low-stock lists ───────────────────────────────────────────────
   const lowStockItems = stocks.filter((s) => s.quantity <= s.minQuantity);
@@ -126,11 +129,11 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
     if (editingId) {
       onUpdate(editingId, form, () => {
         setEditingId(null);
-        setForm({ partName: '', partNumber: '', quantity: 0, minQuantity: 10, unitPrice: 0, supplier: '' });
+        setForm(initialForm);
       });
     } else {
       onCreate(form, () => {
-        setForm({ partName: '', partNumber: '', quantity: 0, minQuantity: 10, unitPrice: 0, supplier: '' });
+        setForm(initialForm);
         setIsCreating(false);
       });
     }
@@ -144,7 +147,8 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
       quantity: stock.quantity,
       minQuantity: stock.minQuantity,
       unitPrice: stock.unitPrice,
-      supplier: stock.supplier,
+      unit: stock.unit || 'piece',
+      supplier: stock.supplier || '',
     });
     setIsCreating(true);
   };
@@ -152,13 +156,30 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
   const handleCancel = () => {
     setIsCreating(false);
     setEditingId(null);
-    setForm({ partName: '', partNumber: '', quantity: 0, minQuantity: 10, unitPrice: 0, supplier: '' });
+    setForm(initialForm);
   };
 
   const getStockStatus = (stock) => {
     if (stock.quantity === 0) return { label: 'Out of Stock', className: 'status-danger' };
     if (stock.quantity <= stock.minQuantity) return { label: 'Low Stock', className: 'status-warning' };
     return { label: 'In Stock', className: 'status-success' };
+  };
+
+  const formatUnit = (unit) => {
+    switch (unit) {
+      case 'litre': return 'L';
+      case 'piece': return 'pcs';
+      case 'can': return 'Cans';
+      case 'bottle': return 'Bottles';
+      case 'barrel': return 'Barrels';
+      case 'pair': return 'Pairs';
+      case 'axle_set': return 'Axle Sets';
+      case 'set': return 'Sets';
+      case 'pack': return 'Packs';
+      case 'box': return 'Boxes';
+      case 'meter': return 'm';
+      default: return unit || '';
+    }
   };
 
   return (
@@ -223,7 +244,7 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
                           <span>{stock.quantity === 0 ? '🔴' : '🟠'}</span>
                           <div>
                             <strong>{stock.partName}</strong>
-                            <p>{stock.quantity === 0 ? 'Out of stock' : `Only ${stock.quantity} left (min: ${stock.minQuantity})`}</p>
+                            <p>{stock.quantity === 0 ? 'Out of stock' : `Only ${stock.quantity} ${formatUnit(stock.unit)} left (min: ${stock.minQuantity} ${formatUnit(stock.unit)})`}</p>
                           </div>
                         </div>
                       ))}
@@ -244,29 +265,45 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
             <div className="form-grid">
               <label>
                 Part Name
-                <input name="partName" value={form.partName} onChange={handleChange} required />
+                <input name="partName" placeholder="e.g. Engine Oil 15W-40, Oil Filter" value={form.partName} onChange={handleChange} required />
               </label>
               <label>
-                Part Number
-                <input name="partNumber" value={form.partNumber} onChange={handleChange} required />
+                Part Number / Code
+                <input name="partNumber" placeholder="e.g. OIL-ENG-01" value={form.partNumber} onChange={handleChange} required />
               </label>
             </div>
             <div className="form-grid">
               <label>
                 Quantity
-                <input name="quantity" type="number" min="0" value={form.quantity} onChange={handleChange} required />
+                <input name="quantity" type="number" min="0" step="any" placeholder="e.g. 50 or 4.5" value={form.quantity} onChange={handleChange} required />
+              </label>
+              <label>
+                Unit of Measure
+                <select name="unit" value={form.unit} onChange={handleChange}>
+                  <option value="litre">Litre (L) - for Oils & Fluids</option>
+                  <option value="can">Can (e.g. 4L / 5L Cans)</option>
+                  <option value="bottle">Bottle (e.g. 1L Bottles)</option>
+                  <option value="barrel">Barrel (Drum)</option>
+                  <option value="piece">Piece (pcs) - Filters, Plugs, etc.</option>
+                  <option value="pair">Pair (Wipers, etc.)</option>
+                  <option value="set">Set (Brake Pads, Gaskets)</option>
+                  <option value="axle_set">Axle Set</option>
+                  <option value="pack">Pack</option>
+                  <option value="box">Box</option>
+                  <option value="meter">Meter (m) - Hoses, Wires</option>
+                </select>
               </label>
               <label>
                 Min. Quantity (Alert Threshold)
-                <input name="minQuantity" type="number" min="0" value={form.minQuantity} onChange={handleChange} required />
+                <input name="minQuantity" type="number" min="0" step="any" placeholder="e.g. 10" value={form.minQuantity} onChange={handleChange} required />
               </label>
               <label>
                 Unit Price (Rs.)
-                <input name="unitPrice" type="number" min="0" step="0.01" value={form.unitPrice} onChange={handleChange} required />
+                <input name="unitPrice" type="number" min="0" step="0.01" placeholder="e.g. 2500" value={form.unitPrice} onChange={handleChange} required />
               </label>
               <label>
                 Supplier
-                <input name="supplier" value={form.supplier} onChange={handleChange} />
+                <input name="supplier" placeholder="e.g. Castrol Lanka, Mobil" value={form.supplier} onChange={handleChange} />
               </label>
             </div>
             <div className="form-actions">
@@ -311,9 +348,9 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
                     </td>
                     <td className="muted">{stock.partNumber}</td>
                     <td style={{ color: stock.quantity === 0 ? '#dc2626' : stock.quantity <= stock.minQuantity ? '#d97706' : 'inherit', fontWeight: stock.quantity <= stock.minQuantity ? 700 : 400 }}>
-                      {stock.quantity} {stock.unit || ''}
+                      {stock.quantity} {formatUnit(stock.unit)}
                     </td>
-                    <td>{stock.minQuantity}</td>
+                    <td>{stock.minQuantity} {formatUnit(stock.unit)}</td>
                     <td>Rs. {stock.unitPrice}</td>
                     <td className="muted">{stock.supplier || '—'}</td>
                     <td>
