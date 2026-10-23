@@ -47,6 +47,23 @@ export function fetchPublicCenters() {
   return request('/auth/centers');
 }
 
+// Staff API
+export function fetchCenterStaff(centerId) {
+  return request(`/auth/centers/${centerId}/staff`);
+}
+
+export function fetchStaff(token) {
+  return request('/auth/staff', { token });
+}
+
+export function createStaff(data, token) {
+  return request('/auth/staff', { method: 'POST', data, token });
+}
+
+export function deleteStaff(id, token) {
+  return request(`/auth/staff/${id}`, { method: 'DELETE', token });
+}
+
 // Service API
 export function fetchServices(token) {
   return request('/services', { token });

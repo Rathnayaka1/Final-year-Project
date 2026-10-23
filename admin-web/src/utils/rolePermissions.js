@@ -29,6 +29,7 @@ export const ROLE_PERMISSIONS = {
     description: 'Full access to all dashboard features',
     features: [
       'serviceCenters',
+      'staff',
       'services',
       'stocks',
       'payments',
