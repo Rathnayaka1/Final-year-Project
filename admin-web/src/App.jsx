@@ -8,6 +8,7 @@ import ServiceManager from './components/ServiceManager';
 import StockManager from './components/StockManager';
 import AppointmentTable from './components/AppointmentTable';
 import TechnicianManager from './components/TechnicianManager';
+import StaffManager from './components/StaffManager';
 
 import { hasPermission, getAccessibleFeatures, getRoleDescription, ROLE_LABELS } from './utils/rolePermissions';
 import {
@@ -42,6 +43,7 @@ import {
 function featureToTab(feature) {
   if (feature === 'serviceCenters') return 'centers';
   if (feature === 'customerLoyalty') return 'loyalty';
+  if (feature === 'staff') return 'staff';
   return feature || 'centers';
 }
 
@@ -611,6 +613,14 @@ export default function App() {
             🏢 Center Registration
           </button>
         )}
+        {hasPermission(auth.user.role, 'staff') && (
+          <button
+            className={`tab-button ${activeTab === 'staff' ? 'active' : ''}`}
+            onClick={() => handleTabChange('staff')}
+          >
+            👥 Staff
+          </button>
+        )}
         {hasPermission(auth.user.role, 'services') && (
           <button
             className={`tab-button ${activeTab === 'services' ? 'active' : ''}`}
@@ -719,6 +729,12 @@ export default function App() {
               onUpdate={handleServiceCenterUpdate}
               loading={loading}
             />
+          </ProtectedFeature>
+        )}
+
+        {activeTab === 'staff' && (
+          <ProtectedFeature userRole={auth.user.role} feature="staff">
+            <StaffManager token={token} currentUser={auth.user} />
           </ProtectedFeature>
         )}
 

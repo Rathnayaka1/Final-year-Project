@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchPublicCenters } from '../services/api';
+import { fetchPublicCenters, fetchCenterStaff } from '../services/api';
 
 export default function LoginForm({ onSubmit, onRegister, loading }) {
   const [isRegistering, setIsRegistering] = useState(false);
@@ -7,6 +7,7 @@ export default function LoginForm({ onSubmit, onRegister, loading }) {
   const [adminName, setAdminName] = useState('');
   const [email, setEmail] = useState('admin@servicecenter.dev');
   const [password, setPassword] = useState('Admin123!');
+  const [centerStaffList, setCenterStaffList] = useState([]);
 
   // Service Centers from database for the dropdown
   const [availableCenters, setAvailableCenters] = useState([
@@ -27,21 +28,6 @@ export default function LoginForm({ onSubmit, onRegister, loading }) {
       });
   }, []);
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    if (isRegistering) {
-      if (!onRegister) return;
-      onRegister({
-        centerName: centerName.trim(),
-        name: adminName.trim(),
-        email: email.trim(),
-        password: password.trim()
-      });
-    } else {
-      onSubmit({ email, password });
-    }
-  };
-
   const downtownAccounts = [
     { email: 'admin@servicecenter.dev', password: 'Admin123!', role: 'Admin' },
     { email: 'manager@servicecenter.dev', password: 'Manager123!', role: 'Manager' },
@@ -58,24 +44,69 @@ export default function LoginForm({ onSubmit, onRegister, loading }) {
     { email: 'receptionist.westside@servicecenter.dev', password: 'Receptionist123!', role: 'Receptionist' }
   ];
 
+  // Dynamically load staff accounts for the selected service center
+  useEffect(() => {
+    if (!selectedCenterId) return;
+
+    const getAccountPassword = (userEmail, userRole) => {
+      const known = [...downtownAccounts, ...westsideAccounts].find(
+        (a) => a.email.toLowerCase() === (userEmail || '').toLowerCase()
+      );
+      if (known) return known.password;
+      const r = (userRole || '').toLowerCase();
+      if (r === 'manager') return 'Manager123!';
+      if (r === 'supervisor') return 'Supervisor123!';
+      if (r === 'cashier') return 'Cashier123!';
+      if (r === 'receptionist') return 'Receptionist123!';
+      return 'Admin123!';
+    };
+
+    fetchCenterStaff(selectedCenterId)
+      .then((res) => {
+        if (res.staff && res.staff.length > 0) {
+          const accounts = res.staff.map((s) => ({
+            email: s.email,
+            password: getAccountPassword(s.email, s.role),
+            role: s.role ? (s.role.charAt(0).toUpperCase() + s.role.slice(1)) : 'Staff'
+          }));
+          setCenterStaffList(accounts);
+
+          // Auto-fill primary admin or first staff if form is empty or center changed
+          const defaultAccount = accounts.find((a) => a.role === 'Admin') || accounts[0];
+          if (defaultAccount) {
+            setEmail(defaultAccount.email);
+            setPassword(defaultAccount.password);
+          }
+        } else {
+          setCenterStaffList([]);
+        }
+      })
+      .catch(() => {
+        setCenterStaffList([]);
+      });
+  }, [selectedCenterId]);
+
+  const handleSubmit = (event) => {
+    event.preventDefault();
+    if (isRegistering) {
+      if (!onRegister) return;
+      onRegister({
+        centerName: centerName.trim(),
+        name: adminName.trim(),
+        email: email.trim(),
+        password: password.trim()
+      });
+    } else {
+      onSubmit({ email, password });
+    }
+  };
+
   const handleCenterDropdownChange = (e) => {
     const chosenId = e.target.value;
     setSelectedCenterId(chosenId);
-
-    const chosenCenter = availableCenters.find((c) => c.id === chosenId);
-    const centerNameLower = (chosenCenter?.name || '').toLowerCase();
-
-    if (centerNameLower.includes('westside')) {
-      setEmail(westsideAccounts[0].email);
-      setPassword(westsideAccounts[0].password);
-    } else if (centerNameLower.includes('downtown')) {
-      setEmail(downtownAccounts[0].email);
-      setPassword(downtownAccounts[0].password);
-    } else {
-      // Custom registered center (like Autohub)
-      setEmail('');
-      setPassword('');
-    }
+    setCenterStaffList([]); // Reset instantly so previous center's staff never lingers
+    setEmail('');
+    setPassword('');
   };
 
   const handleDemoSelect = (account) => {
@@ -87,7 +118,11 @@ export default function LoginForm({ onSubmit, onRegister, loading }) {
   const selectedCenterName = selectedCenter?.name || 'Downtown Service Center';
   const isWestside = selectedCenterName.toLowerCase().includes('westside');
   const isDowntown = selectedCenterName.toLowerCase().includes('downtown');
-  const quickAccounts = isWestside ? westsideAccounts : isDowntown ? downtownAccounts : [];
+  
+  // Use dynamically loaded staff from backend if available, fallback to pre-set arrays
+  const quickAccounts = centerStaffList.length > 0
+    ? centerStaffList
+    : (isWestside ? westsideAccounts : isDowntown ? downtownAccounts : []);
 
   return (
     <form className="card" onSubmit={handleSubmit}>
@@ -257,10 +292,11 @@ export default function LoginForm({ onSubmit, onRegister, loading }) {
               <div className="role-buttons">
                 {quickAccounts.map((account) => (
                   <button
-                    key={account.role}
+                    key={account.email || account.role}
                     type="button"
                     className={`role-btn ${email === account.email ? 'active-role' : ''}`}
                     onClick={() => handleDemoSelect(account)}
+                    title={account.email}
                   >
                     <span className="role-label">{account.role}</span>
                     <span className="role-email">{account.email}</span>
