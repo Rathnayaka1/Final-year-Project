@@ -703,6 +703,7 @@ export default function App() {
               appointments={appointments}
               onUpdate={handleAppointmentUpdate}
               updatingId={updatingAppointmentId}
+              technicians={technicians}
             />
           </ProtectedFeature>
         )}
