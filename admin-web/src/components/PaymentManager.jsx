@@ -25,6 +25,8 @@ export default function PaymentManager({
   appointments = [],
   stocks = [],
   services = [],
+  serviceCenters = [],
+  currentCenterName = '',
   onCreate,
   onUpdate,
   onDelete,
@@ -530,16 +532,47 @@ export default function PaymentManager({
     const paymentMethod = (payment.paymentMethod || 'CASH').toUpperCase();
     const paymentStatus = (payment.status || 'COMPLETED').toUpperCase();
 
+    // Resolve Service Center Name & Address dynamically
+    let resolvedCenterName = 'SMART SERVICE CENTER';
+    let resolvedCenterAddress = '';
+
+    if (payment.serviceCenter) {
+      if (typeof payment.serviceCenter === 'object' && payment.serviceCenter.name) {
+        resolvedCenterName = payment.serviceCenter.name;
+        resolvedCenterAddress = payment.serviceCenter.address || '';
+      } else {
+        const centerIdStr = String(payment.serviceCenter.id || payment.serviceCenter);
+        const found = (serviceCenters || []).find(
+          (c) => String(c.id || c._id) === centerIdStr
+        );
+        if (found) {
+          resolvedCenterName = found.name;
+          resolvedCenterAddress = found.address || '';
+        }
+      }
+    }
+
+    if (resolvedCenterName === 'SMART SERVICE CENTER' && currentCenterName) {
+      resolvedCenterName = currentCenterName;
+      const currentCenterObj = (serviceCenters || []).find((c) => c.name === currentCenterName);
+      if (currentCenterObj?.address) resolvedCenterAddress = currentCenterObj.address;
+    }
+
+    const headerTitle = resolvedCenterName.toUpperCase();
+    const headerSubtitle = resolvedCenterAddress
+      ? `${resolvedCenterAddress} | Official Invoice`
+      : 'Automotive Care & Smart Diagnostics | Official Invoice';
+
     // Warm Amber / Golden Header styling (Project theme: #f39c12 / #e67e22)
     doc.setFillColor(243, 156, 18);
     doc.rect(0, 0, 210, 30, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('SMART SERVICE CENTER', 20, 18);
-    doc.setFontSize(10);
+    doc.setFontSize(headerTitle.length > 28 ? 14 : 18);
+    doc.text(headerTitle, 20, 18);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text('Automotive Care & Smart Diagnostics | Official Invoice', 20, 25);
+    doc.text(headerSubtitle, 20, 25);
 
     // Invoice Meta
     doc.setTextColor(50, 50, 50);

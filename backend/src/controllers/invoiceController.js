@@ -8,7 +8,7 @@ const Payment = require('../models/Payment');
  */
 async function generateInvoice(req, res) {
   try {
-    const payment = await Payment.findById(req.params.id);
+    const payment = await Payment.findById(req.params.id).populate('serviceCenter', 'name address');
     if (!payment) {
       return res.status(404).json({ error: 'Payment not found' });
     }
@@ -38,16 +38,21 @@ async function generateInvoice(req, res) {
     const paymentMethod = (payment.paymentMethod || 'CASH').toUpperCase();
     const paymentStatus = (payment.status || 'COMPLETED').toUpperCase();
 
+    const headerTitle = (payment.serviceCenter?.name || 'Smart Service Center').toUpperCase();
+    const headerSubtitle = payment.serviceCenter?.address
+      ? `${payment.serviceCenter.address} | Official Invoice`
+      : 'Automotive Care & Smart Diagnostics | Official Invoice';
+
     // Warm Amber / Golden Header styling (Project theme: #f39c12 / #e67e22)
     doc.setFillColor(243, 156, 18);
     doc.rect(0, 0, 210, 30, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(18);
-    doc.text('SMART SERVICE CENTER', 20, 18);
-    doc.setFontSize(10);
+    doc.setFontSize(headerTitle.length > 28 ? 14 : 18);
+    doc.text(headerTitle, 20, 18);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
-    doc.text('Automotive Care & Smart Diagnostics | Official Invoice', 20, 25);
+    doc.text(headerSubtitle, 20, 25);
 
     // Invoice Meta
     doc.setTextColor(50, 50, 50);
