@@ -119,9 +119,6 @@ export default function StaffManager({ token, currentUser }) {
         <div className="card-header">
           <div>
             <h2>👥 Service Center Staff Management</h2>
-            <p className="muted">
-              Register and manage staff accounts for this Service Center. Added staff can log in using their credentials and automatically appear on the Login screen shortcuts.
-            </p>
           </div>
         </div>
 

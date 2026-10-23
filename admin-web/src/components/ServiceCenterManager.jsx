@@ -281,9 +281,6 @@ export default function ServiceCenterManager({ serviceCenters, currentCenterId, 
                 </button>
               )}
             </div>
-            <span style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px', display: 'block' }}>
-              ✍️ Enter address manually, then click &quot;Pin on Map&quot; to auto-detect coordinates.
-            </span>
           </label>
 
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.5rem', marginBottom: '1rem' }}>

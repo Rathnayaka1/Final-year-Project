@@ -747,6 +747,8 @@ export default function App() {
               appointments={appointments}
               stocks={stocks}
               services={services}
+              serviceCenters={serviceCenters}
+              currentCenterName={auth.user?.serviceCenterName}
               token={token}
               onCreate={handlePaymentCreate}
               onUpdate={handlePaymentUpdate}
