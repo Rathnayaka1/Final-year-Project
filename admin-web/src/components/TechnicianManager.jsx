@@ -523,6 +523,79 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
               </div>
             ) : null}
 
+            {/* ── HR Appraisal & Promotion Recommendation Card ── */}
+            {(() => {
+              const rating = Number(activeModalTech.averageRating || 4.0);
+              const speedRatio = Number(activeModalTech.historicalSpeedRatio || 1.0);
+              const successRate = Number(activeModalTech.successRate || 100);
+              const completedJobs = Number(activeModalTech.completedJobs || activeModalTech.totalJobs || 0);
+              const experience = Number(activeModalTech.experienceYears || 0);
+
+              const qScore = (rating / 5) * 30;
+              const spdScore = Math.min(25, (speedRatio / 1.1) * 25);
+              const relScore = (successRate / 100) * 25;
+              const volExpScore = Math.min(10, (experience / 5) * 10) + Math.min(10, (completedJobs / 20) * 10);
+              const promotionScore = Math.min(100, Math.round(qScore + spdScore + relScore + volExpScore));
+
+              const isEligible = promotionScore >= 85;
+              const isSolid = promotionScore >= 70 && promotionScore < 85;
+
+              const statusColor = isEligible ? '#16a34a' : isSolid ? '#0284c7' : '#d97706';
+              const bgColor = isEligible ? '#f0fdf4' : isSolid ? '#f0f9ff' : '#fffbeb';
+              const borderColor = isEligible ? '#bbf7d0' : isSolid ? '#bae6fd' : '#fde68a';
+              const verdictLabel = isEligible
+                ? '🌟 Eligible for Senior Promotion / Bonus'
+                : isSolid
+                ? '🟢 Solid Performer (Good Standing)'
+                : '⚠️ Training / Skill Mentoring Recommended';
+
+              const recommendationNote = isEligible
+                ? `Technician exhibits outstanding metrics: ${rating}⭐ rating, ${speedRatio.toFixed(2)}x turnaround efficiency, and ${successRate}% zero-rework reliability. Highly recommended for Senior Lead promotion or performance incentive bonus.`
+                : isSolid
+                ? `Reliable technician meeting core operational service benchmarks (${rating}⭐, ${successRate}% success). Recommended for standard annual appraisal and continued specialization.`
+                : `Performance metrics indicate areas for improvement (speed or rating). Recommended for structured supervisor mentoring and hands-on skill training before next evaluation.`;
+
+              return (
+                <div style={{
+                  marginTop: 18,
+                  padding: '14px 16px',
+                  borderRadius: 10,
+                  background: bgColor,
+                  border: `1.5px solid ${borderColor}`
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ fontWeight: '700', fontSize: '0.95rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>💼 Management Appraisal &amp; Promotion Insights</span>
+                    </div>
+                    <span style={{
+                      fontSize: '0.82rem',
+                      fontWeight: '700',
+                      padding: '4px 10px',
+                      borderRadius: 20,
+                      background: '#fff',
+                      color: statusColor,
+                      border: `1px solid ${statusColor}`
+                    }}>
+                      {verdictLabel}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '8px 0' }}>
+                    <div style={{ fontSize: '0.85rem', color: '#475569', minWidth: 140 }}>
+                      Promotion Readiness: <strong style={{ color: statusColor, fontSize: '1rem' }}>{promotionScore}%</strong>
+                    </div>
+                    <div style={{ flex: 1, height: 8, background: '#e2e8f0', borderRadius: 4, overflow: 'hidden' }}>
+                      <div style={{ width: `${promotionScore}%`, height: '100%', background: statusColor, borderRadius: 4, transition: 'width 0.4s' }} />
+                    </div>
+                  </div>
+
+                  <p style={{ margin: '8px 0 0', fontSize: '0.83rem', color: '#334155', lineHeight: 1.45 }}>
+                    <strong>Owner's Recommendation:</strong> {recommendationNote}
+                  </p>
+                </div>
+              );
+            })()}
+
             <div style={{ marginTop: 20, textAlign: 'right' }}>
               <button onClick={() => setActiveModalTech(null)}>Close</button>
             </div>
