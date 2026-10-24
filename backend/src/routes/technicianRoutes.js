@@ -5,15 +5,17 @@ const {
   createTechnician,
   updateTechnician,
   deleteTechnician,
-  predictTechniciansEndpoint
+  predictTechniciansEndpoint,
+  rateTechnician
 } = require('../controllers/technicianController');
-const { authenticate, requireRole } = require('../middlewares/authMiddleware');
+const { authenticate, optionalAuth, requireRole } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
 // Allow public/app fetching of available technicians for appointment booking
 router.get('/available', getAvailableTechnicians);
 router.post('/predict', predictTechniciansEndpoint);
+router.post('/:id/rate', optionalAuth, rateTechnician);
 
 // Allow admin, supervisor, and receptionist to view technicians
 router.get('/', authenticate, requireRole('admin', 'supervisor', 'receptionist'), listTechnicians);

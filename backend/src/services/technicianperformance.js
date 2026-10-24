@@ -2,7 +2,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 
-const SCRIPT_PATH = path.resolve(__dirname, '../../../../model and scripts/scripts/predict.py');
+const SCRIPT_PATH = path.resolve(__dirname, '../../../technician-ml/predict.py');
 
 /**
  * Fallback heuristic in case Python runtime is temporarily unreachable
@@ -37,11 +37,11 @@ async function predictTechnicianPerformance(technicians = [], vehicleType = 'Car
   const payload = technicians.map((tech) => ({
     vehicle_type: vehicleType,
     service_type: serviceType,
-    experience_years: tech.experienceYears || tech.experience_years || 0,
-    job_count: tech.totalJobs || tech.job_count || 0,
-    work_success_rate_num: tech.successRate || tech.work_success_rate_num || 100.0,
-    customer_rating: tech.averageRating || tech.customer_rating || 4.0,
-    historical_speed_ratio: 1.0
+    experience_years: Number(tech.experienceYears || tech.experience_years || 0),
+    job_count: Number(tech.totalJobs || tech.job_count || 0),
+    work_success_rate_num: Number(tech.successRate || tech.work_success_rate_num || 100.0),
+    customer_rating: Number(tech.averageRating || tech.customer_rating || 4.0),
+    historical_speed_ratio: Number(tech.historicalSpeedRatio || tech.historical_speed_ratio || 1.0)
   }));
 
   const pythonBin = process.env.PYTHON_PATH || 'python';

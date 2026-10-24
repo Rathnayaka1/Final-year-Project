@@ -145,22 +145,26 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
     const services = ['Interior', 'Full Body', 'Body Wash'];
 
     try {
-      const matrixResults = {};
+      const matrixResults = { Car: {}, Van: {}, Cab: {} };
+      const tasks = [];
       for (const v of vehicles) {
-        matrixResults[v] = {};
         for (const s of services) {
-          const res = await predictTechnicians(
-            {
-              technicians: [technician],
-              vehicleType: v,
-              serviceType: s
-            },
-            token
+          tasks.push(
+            predictTechnicians(
+              {
+                technicians: [technician],
+                vehicleType: v,
+                serviceType: s
+              },
+              token
+            ).then((res) => {
+              const pred = res?.technicians?.[0]?.aiPrediction || { level: 'MEDIUM' };
+              matrixResults[v][s] = pred.level;
+            })
           );
-          const pred = res?.technicians?.[0]?.aiPrediction || { level: 'MEDIUM' };
-          matrixResults[v][s] = pred.level;
         }
       }
+      await Promise.all(tasks);
       setModalMatrix(matrixResults);
     } catch (e) {
       console.warn('Matrix prediction failed:', e);
@@ -205,9 +209,9 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
               onChange={(e) => setScenarioVehicle(e.target.value)}
               disabled={predicting}
             >
-              <option value="Car">🚗 Car / Sedan</option>
-              <option value="Van">🚐 Van / MPV</option>
-              <option value="Cab">🚖 Cab / SUV</option>
+              <option value="Car">🚗 Car</option>
+              <option value="Van">🚐 Van</option>
+              <option value="Cab">🚖 Cab</option>
             </select>
           </label>
 
@@ -402,9 +406,9 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
                         className="ghost small"
                         style={{ color: '#0284c7', borderColor: '#bae6fd', background: '#f0f9ff' }}
                         onClick={() => handleOpenAiModal(technician)}
-                        title="Inspect full AI Performance breakdown"
+                        title="Inspect technician performance matrix"
                       >
-                        ⚡ AI Insight
+                        📊 Performance Matrix
                       </button>
                       <button
                         className="ghost small"
@@ -435,7 +439,7 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
           <div className="ai-modal-card" onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <h3 style={{ margin: 0, color: '#0f172a' }}>
-                ⚡ AI Performance Breakdown: {activeModalTech.name}
+                📊 Performance Matrix: {activeModalTech.name}
               </h3>
               <button
                 className="ghost small"
@@ -451,18 +455,22 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
             </p>
 
             {/* Baseline metrics */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8, marginBottom: 16 }}>
               <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, textAlign: 'center', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Rating</div>
                 <div style={{ fontWeight: '700', fontSize: '1rem', color: '#0f172a' }}>⭐ {activeModalTech.averageRating || 4.5}</div>
               </div>
               <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, textAlign: 'center', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Completed</div>
-                <div style={{ fontWeight: '700', fontSize: '1rem', color: '#0f172a' }}>📋 {activeModalTech.totalJobs || 0} jobs</div>
+                <div style={{ fontWeight: '700', fontSize: '1rem', color: '#0f172a' }}>📋 {activeModalTech.completedJobs || activeModalTech.totalJobs || 0} jobs</div>
               </div>
               <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, textAlign: 'center', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Success Rate</div>
                 <div style={{ fontWeight: '700', fontSize: '1rem', color: '#16a34a' }}>🎯 {activeModalTech.successRate || 98}%</div>
+              </div>
+              <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, textAlign: 'center', border: '1px solid #e2e8f0' }}>
+                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Speed Ratio</div>
+                <div style={{ fontWeight: '700', fontSize: '1rem', color: '#0284c7' }}>⚡ {Number(activeModalTech.historicalSpeedRatio || 1.0).toFixed(2)}x</div>
               </div>
               <div style={{ background: '#f8fafc', padding: 10, borderRadius: 8, textAlign: 'center', border: '1px solid #e2e8f0' }}>
                 <div style={{ fontSize: '0.75rem', color: '#64748b' }}>Experience</div>
