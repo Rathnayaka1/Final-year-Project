@@ -306,7 +306,7 @@ async function getActiveAppointment(req, res) {
 
 async function updateAppointmentStatusHandler(req, res) {
   const { id } = req.params;
-  const { status, queueStatus } = req.body || {};
+  const { status, queueStatus, actualDuration: customDuration } = req.body || {};
 
   if (!status && !queueStatus) {
     return res.status(400).json({ error: 'Provide status or queueStatus to update' });
@@ -357,10 +357,14 @@ async function updateAppointmentStatusHandler(req, res) {
       const completionDate = new Date();
       update.completedAt = completionDate;
 
-      const startDate = existing.startedAt || update.startedAt || existing.createdAt || completionDate;
-      const durationMs = completionDate - new Date(startDate);
-      const durationHours = Math.max(0.1, Number((durationMs / (1000 * 60 * 60)).toFixed(2)));
-      update.actualDuration = durationHours;
+      if (customDuration && Number(customDuration) > 0) {
+        update.actualDuration = Number(Number(customDuration).toFixed(2));
+      } else {
+        const startDate = existing.startedAt || update.startedAt || existing.createdAt || completionDate;
+        const durationMs = completionDate - new Date(startDate);
+        const durationHours = Math.max(0.1, Number((durationMs / (1000 * 60 * 60)).toFixed(2)));
+        update.actualDuration = durationHours;
+      }
     }
 
     const updated = await Appointment.findByIdAndUpdate(id, update, { new: true });
@@ -368,7 +372,27 @@ async function updateAppointmentStatusHandler(req, res) {
     if (effectiveStatus === STATUS.COMPLETED && existing.status !== STATUS.COMPLETED) {
       const points = await awardLoyaltyPointsForCompletion(updated);
       if (updated.technician) {
-        await Technician.findByIdAndUpdate(updated.technician, { $inc: { totalJobs: 1 } });
+        const techId = updated.technician?._id || updated.technician;
+        const tech = await Technician.findById(techId);
+        if (tech) {
+          const newTotalJobs = (tech.totalJobs || 0) + 1;
+          const newCompletedJobs = (tech.completedJobs || 0) + 1;
+          const newSuccessRate = Number(((newCompletedJobs / newTotalJobs) * 100).toFixed(1));
+
+          const estimated = Number(updated.estimatedDuration || 1.0);
+          const actual = Number(updated.actualDuration || 1.0);
+          const currentSpeedRatio = estimated / actual;
+
+          const oldSpeed = tech.historicalSpeedRatio || 1.0;
+          const priorJobs = tech.completedJobs || 0;
+          const newAvgSpeed = Number((((oldSpeed * priorJobs) + currentSpeedRatio) / newCompletedJobs).toFixed(3));
+
+          tech.totalJobs = newTotalJobs;
+          tech.completedJobs = newCompletedJobs;
+          tech.successRate = newSuccessRate;
+          tech.historicalSpeedRatio = newAvgSpeed;
+          await tech.save();
+        }
       }
       // Notification: Service completed
       if (updated.customer) {
@@ -388,6 +412,16 @@ async function updateAppointmentStatusHandler(req, res) {
             data: { points }
           });
         }
+      }
+    }
+
+    if (effectiveStatus === STATUS.CANCELLED && existing.status !== STATUS.CANCELLED && updated.technician) {
+      const techId = updated.technician?._id || updated.technician;
+      const tech = await Technician.findById(techId);
+      if (tech) {
+        tech.totalJobs = (tech.totalJobs || 0) + 1;
+        tech.successRate = Number((((tech.completedJobs || 0) / tech.totalJobs) * 100).toFixed(1));
+        await tech.save();
       }
     }
 
