@@ -27,7 +27,7 @@ export default function DashboardScreen({ navigation }) {
     try {
       const [appointment, centers, reminder] = await Promise.all([
         getActiveAppointment(token).catch(() => null),
-        getNearbyServiceCenters(6.9271, 79.8612, 10000).catch(() => []),
+        getNearbyServiceCenters(6.9271, 79.8612, 25000).catch(() => []),
         getNextServiceReminder(token).catch(() => null)
       ]);
 
