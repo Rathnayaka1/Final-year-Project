@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 
 const VEHICLE_OPTIONS = [
-  { value: 'All', label: '🚗🚐 All Vehicles' },
+  { value: 'All', label: '🚗🚐🚖 All Vehicles' },
   { value: 'Car', label: '🚗 Car' },
   { value: 'Van', label: '🚐 Van' },
-  { value: 'Mini Bus', label: '🚌 Mini Bus' },
   { value: 'Cab', label: '🚖 Cab' }
 ];
 
@@ -25,12 +24,10 @@ function getVehicleBadge(type) {
       return <span className="badge badge-car">🚗 Car</span>;
     case 'Van':
       return <span className="badge badge-van">🚐 Van</span>;
-    case 'Mini Bus':
-      return <span className="badge badge-bus">🚌 Mini Bus</span>;
     case 'Cab':
       return <span className="badge badge-cab">🚖 Cab</span>;
     default:
-      return <span className="badge badge-all">🚗🚐 All Vehicles</span>;
+      return <span className="badge badge-all">🚗🚐🚖 All</span>;
   }
 }
 
@@ -73,12 +70,18 @@ export default function ServiceManager({ services, onCreate, onUpdate, onDelete,
       return;
     }
 
+    let derivedType = 'Body Wash';
+    const lower = trimmedName.toLowerCase();
+    if (lower.includes('interior') || lower.includes('steam')) derivedType = 'Interior';
+    else if (lower.includes('full') || lower.includes('wax') || lower.includes('hybrid') || lower.includes('lube')) derivedType = 'Full Body';
+
     const payload = {
       name: trimmedName,
       description: form.description,
       duration: totalDuration > 0 ? totalDuration : 30,
       basePrice: Number(form.basePrice) || 0,
-      vehicleType: form.vehicleType || 'All'
+      vehicleType: form.vehicleType || 'All',
+      serviceType: derivedType
     };
 
     if (editingId) {

@@ -1,3 +1,4 @@
+require('./src/config/dnsFix');
 const mongoose = require('mongoose');
 
 const uri = 'mongodb+srv://rathnayakanipuni696_db_user:nipuni2026@cluster0.e9xu4qs.mongodb.net/Smart-Service-Center-App?appName=Cluster0';

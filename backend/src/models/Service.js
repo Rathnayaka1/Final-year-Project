@@ -9,11 +9,16 @@ const serviceSchema = new mongoose.Schema(
     vehicleType: { 
       type: String, 
       default: 'All', 
-      enum: ['All', 'Car', 'Van', 'Mini Bus', 'Cab'] 
+      enum: ['All', 'Car', 'Van', 'Cab'] 
+    },
+    serviceType: {
+      type: String,
+      enum: ['Body Wash', 'Full Body', 'Interior'],
+      default: 'Body Wash'
     },
     category: {
       type: String,
-      default: 'General',
+      default: 'Detailing & Wash',
       enum: ['Maintenance', 'Mechanical', 'Detailing & Wash', 'Electrical & AC', 'General']
     },
     serviceCenter: {

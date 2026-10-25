@@ -374,7 +374,7 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
                               : 'badge-ai-low'
                           }`}
                         >
-                          {isHigh ? '🟢 HIGH' : isMedium ? '🟡 MEDIUM' : '⚪ STANDARD'}
+                          {isHigh ? '🟢 HIGH' : isMedium ? '🟡 MEDIUM' : isLow ? '🔴 LOW' : '⚪ STANDARD'}
                         </span>
                         {isTop && <span className="badge-ai-top">⭐ Top Pick</span>}
                         {ai.confidence && (

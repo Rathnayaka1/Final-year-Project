@@ -120,7 +120,7 @@ async function getAvailableTechnicians(req, res) {
 
     let query = { status: 'active' };
     if (targetCenterId) {
-      query.$or = [{ serviceCenter: targetCenterId }, { serviceCenter: null }];
+      query.serviceCenter = targetCenterId;
     }
 
     const technicians = await Technician.find(query).populate('serviceCenter', 'name address');

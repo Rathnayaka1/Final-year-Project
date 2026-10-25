@@ -6,6 +6,15 @@ function serializeService(doc) {
   service.id = (service._id || service.id)?.toString();
   delete service._id;
 
+  const lower = (service.name || '').toLowerCase();
+  if (lower.includes('interior') || lower.includes('sanitization') || lower.includes('steam')) {
+    service.serviceType = 'Interior';
+  } else if (lower.includes('full') || lower.includes('hybrid')) {
+    service.serviceType = 'Full Body';
+  } else if (!service.serviceType) {
+    service.serviceType = 'Body Wash';
+  }
+
   if (service.serviceCenter) {
     if (typeof service.serviceCenter === 'object' && service.serviceCenter._id) {
       service.serviceCenter.id = service.serviceCenter._id.toString();
@@ -35,7 +44,7 @@ async function getServices(req, res) {
 }
 
 async function createServiceHandler(req, res) {
-  const { name, description, duration, basePrice, vehicleType, category, serviceCenter } = req.body || {};
+  const { name, description, duration, basePrice, vehicleType, category, serviceType, serviceCenter } = req.body || {};
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Service name is required' });
@@ -44,6 +53,14 @@ async function createServiceHandler(req, res) {
   const targetCenter = req.user?.serviceCenter || serviceCenter || null;
   const cleanName = name.trim();
   const targetVehicleType = vehicleType || 'All';
+
+  let finalServiceType = serviceType;
+  if (!finalServiceType) {
+    const lower = cleanName.toLowerCase();
+    if (lower.includes('interior')) finalServiceType = 'Interior';
+    else if (lower.includes('full')) finalServiceType = 'Full Body';
+    else finalServiceType = 'Body Wash';
+  }
 
   try {
     // Check for duplicate: same service name + same vehicle type within the same service center
@@ -63,7 +80,8 @@ async function createServiceHandler(req, res) {
       duration: Number(duration) || 30,
       basePrice: Number(basePrice) || 0,
       vehicleType: targetVehicleType,
-      category: category || 'General',
+      serviceType: finalServiceType,
+      category: category || 'Detailing & Wash',
       serviceCenter: targetCenter
     });
 
@@ -77,7 +95,7 @@ async function createServiceHandler(req, res) {
 
 async function updateServiceHandler(req, res) {
   const { id } = req.params;
-  const { name, description, duration, basePrice, vehicleType, category } = req.body || {};
+  const { name, description, duration, basePrice, vehicleType, category, serviceType } = req.body || {};
 
   const queryFilter = { _id: id };
   if (req.user?.serviceCenter) {
@@ -91,6 +109,7 @@ async function updateServiceHandler(req, res) {
   if (basePrice !== undefined) updateDoc.basePrice = Number(basePrice) || 0;
   if (vehicleType !== undefined) updateDoc.vehicleType = vehicleType;
   if (category !== undefined) updateDoc.category = category;
+  if (serviceType !== undefined) updateDoc.serviceType = serviceType;
 
   try {
     if (updateDoc.name || updateDoc.vehicleType) {
