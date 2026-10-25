@@ -13,7 +13,7 @@ import {
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { useAuth } from '../context/AuthContext';
-import { getMyAppointments, getPaymentByAppointment, getInvoiceBase64 } from '../services/api';
+import { getMyAppointments, getPaymentByAppointment, getInvoiceBase64, rateTechnician } from '../services/api';
 
 export default function AppointmentsScreen({ navigation }) {
   const { token } = useAuth();
@@ -21,6 +21,48 @@ export default function AppointmentsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [downloadingInvoice, setDownloadingInvoice] = useState(null);
+  const [selectedRatings, setSelectedRatings] = useState({});
+  const [submittingRatingId, setSubmittingRatingId] = useState(null);
+
+  function handleSelectStar(appointmentId, star) {
+    setSelectedRatings(prev => ({ ...prev, [appointmentId]: star }));
+  }
+
+  async function handleSubmitRating(appointment) {
+    const aptId = appointment.id || appointment._id;
+    const tech = appointment.technician;
+    const techId = tech?._id || tech?.id || (typeof tech === 'string' ? tech : null);
+    const rating = selectedRatings[aptId] || 5;
+
+    if (!techId) {
+      Alert.alert('Error', 'No assigned technician found for this appointment.');
+      return;
+    }
+
+    setSubmittingRatingId(aptId);
+    try {
+      await rateTechnician(techId, rating, token, aptId);
+      Alert.alert('Thank you!', 'Your rating has been recorded successfully.');
+
+      setAppointments(prev =>
+        prev.map(item => {
+          const currentId = item.id || item._id;
+          if (currentId === aptId) {
+            return {
+              ...item,
+              customerRating: rating
+            };
+          }
+          return item;
+        })
+      );
+    } catch (error) {
+      console.error('Failed to submit rating:', error);
+      Alert.alert('Rating Error', error?.response?.data?.error || error.message || 'Could not submit rating.');
+    } finally {
+      setSubmittingRatingId(null);
+    }
+  }
 
   async function handleDownloadInvoice(confirmationCode) {
     setDownloadingInvoice(confirmationCode);
@@ -206,6 +248,12 @@ export default function AppointmentsScreen({ navigation }) {
                   <Text style={styles.detailValue}>{apt.queueNumber}</Text>
                 </View>
               )}
+              {apt.technician?.name && (
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailLabel}>Technician</Text>
+                  <Text style={styles.detailValue}>{apt.technician.name}</Text>
+                </View>
+              )}
             </View>
 
             {/* Progress Bar */}
@@ -257,6 +305,57 @@ export default function AppointmentsScreen({ navigation }) {
                 <Text style={styles.costLabel}>Estimated Cost:</Text>
                 <Text style={styles.costValue}>Rs. {apt.estimatedCost}</Text>
               </View>
+            )}
+
+            {/* Technician Rating for Completed Appointments */}
+            {apt.status === 'completed' && apt.technician && (
+              apt.customerRating ? (
+                <View style={styles.ratedContainer}>
+                  <Text style={styles.ratedText}>
+                    ⭐ You rated {apt.technician?.name || 'Technician'}: {'⭐'.repeat(apt.customerRating)} ({apt.customerRating}/5)
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.ratingCard}>
+                  <Text style={styles.ratingTitle}>
+                    Rate {apt.technician?.name || 'Technician'}
+                  </Text>
+                  <Text style={styles.ratingSubtitle}>
+                    Share your experience to help improve our service quality
+                  </Text>
+                  <View style={styles.starsRow}>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const selected = selectedRatings[apt.id || apt._id] || 5;
+                      const isFilled = selected >= star;
+                      return (
+                        <Pressable
+                          key={star}
+                          onPress={() => handleSelectStar(apt.id || apt._id, star)}
+                          style={styles.starTouch}
+                        >
+                          <Text style={[styles.starIcon, isFilled ? styles.starFilled : styles.starEmpty]}>
+                            ★
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                    <Text style={styles.ratingCountText}>
+                      ({selectedRatings[apt.id || apt._id] || 5}/5)
+                    </Text>
+                  </View>
+                  <Pressable
+                    style={styles.submitRatingButton}
+                    onPress={() => handleSubmitRating(apt)}
+                    disabled={submittingRatingId === (apt.id || apt._id)}
+                  >
+                    {submittingRatingId === (apt.id || apt._id) ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={styles.submitRatingButtonText}>⭐ Submit Rating</Text>
+                    )}
+                  </Pressable>
+                </View>
+              )
             )}
 
             {apt.status === 'completed' && (
@@ -582,5 +681,75 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#92400E',
     lineHeight: 17
+  },
+  ratedContainer: {
+    marginTop: 12,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#FCD34D'
+  },
+  ratedText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+    textAlign: 'center'
+  },
+  ratingCard: {
+    marginTop: 12,
+    backgroundColor: '#FFFBEB',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#FDE68A'
+  },
+  ratingTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#78350F',
+    marginBottom: 2
+  },
+  ratingSubtitle: {
+    fontSize: 12,
+    color: '#92400E',
+    marginBottom: 10
+  },
+  starsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12
+  },
+  starTouch: {
+    padding: 4
+  },
+  starIcon: {
+    fontSize: 28
+  },
+  starFilled: {
+    color: '#F59E0B'
+  },
+  starEmpty: {
+    color: '#D1D5DB'
+  },
+  ratingCountText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#B45309',
+    marginLeft: 6
+  },
+  submitRatingButton: {
+    backgroundColor: '#F59E0B',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  submitRatingButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700'
   }
 });

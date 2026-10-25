@@ -77,6 +77,15 @@ export async function getAvailableTechnicians(centerId, token, vehicleType = 'Ca
   return data.technicians || [];
 }
 
+export async function rateTechnician(technicianId, rating, token, appointmentId) {
+  const { data } = await client.post(
+    `/technicians/${technicianId}/rate`,
+    { rating, appointmentId },
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+  );
+  return data;
+}
+
 // Services APIs
 export async function getServices() {
   const { data } = await client.get('/services');
