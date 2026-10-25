@@ -378,7 +378,7 @@ export default function BookScreen({ navigation }) {
         vehicleLocationLongitude: defaultVehicleLocation.longitude.toString()
       }));
     } catch (err) {
-      setBookingError(err.message);
+      setBookingError(err.response?.data?.error || err.message);
     } finally {
       setSubmitting(false);
     }

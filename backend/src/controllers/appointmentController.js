@@ -28,9 +28,19 @@ async function getNextQueueNumber() {
 
 function serializeAppointment(doc) {
   if (!doc) return null;
-  const appointment = doc.toObject({ versionKey: false });
-  appointment.id = appointment._id;
+  const appointment = doc.toObject ? doc.toObject({ versionKey: false }) : { ...doc };
+  appointment.id = (appointment._id || appointment.id)?.toString();
   delete appointment._id;
+
+  if (appointment.technician && typeof appointment.technician === 'object') {
+    if (appointment.technician.name) {
+      appointment.technician.id = (appointment.technician._id || appointment.technician.id)?.toString();
+      delete appointment.technician._id;
+    } else {
+      appointment.technician = appointment.technician.toString();
+    }
+  }
+
   return appointment;
 }
 
@@ -176,6 +186,7 @@ async function createAppointmentHandler(req, res) {
 
     return res.status(201).json({ appointment: serializeAppointment(appointment) });
   } catch (error) {
+    console.error('Create appointment error:', error);
     return res.status(400).json({ error: error.message });
   }
 }
@@ -235,6 +246,7 @@ async function getCustomerAppointments(req, res) {
     const appointments = await Appointment.find(matchCriteria)
       .populate('serviceCenter', 'name address phone')
       .populate('service', 'name duration basePrice')
+      .populate('technician', 'name specialization averageRating')
       .sort({ createdAt: -1 });
 
     const confirmationCodes = appointments
@@ -279,6 +291,7 @@ async function getActiveAppointment(req, res) {
     })
       .populate('serviceCenter', 'name address phone currentQueueLength averageWaitTime')
       .populate('service', 'name duration basePrice')
+      .populate('technician', 'name specialization averageRating')
       .sort({ createdAt: -1 });
     
     if (!appointment) {
