@@ -41,6 +41,14 @@ function serializeAppointment(doc) {
     }
   }
 
+  if (appointment.customer && typeof appointment.customer === 'object') {
+    if (!appointment.customerEmail && appointment.customer.email) {
+      appointment.customerEmail = appointment.customer.email;
+    }
+    appointment.customerId = (appointment.customer._id || appointment.customer.id)?.toString();
+    appointment.customer = (appointment.customer._id || appointment.customer.id)?.toString();
+  }
+
   return appointment;
 }
 
@@ -157,9 +165,17 @@ async function createAppointmentHandler(req, res) {
     }
     
     if (!appointmentData.customer && customerPhone) {
-      const existingCustomer = await Customer.findOne({ phone: customerPhone }).select('_id');
+      const existingCustomer = await Customer.findOne({ phone: customerPhone }).select('_id email');
       if (existingCustomer) {
         appointmentData.customer = existingCustomer._id;
+        if (!appointmentData.customerEmail && existingCustomer.email) {
+          appointmentData.customerEmail = existingCustomer.email;
+        }
+      }
+    } else if (appointmentData.customer && !appointmentData.customerEmail) {
+      const existingCustomer = await Customer.findById(appointmentData.customer).select('email');
+      if (existingCustomer?.email) {
+        appointmentData.customerEmail = existingCustomer.email;
       }
     }
     
@@ -197,6 +213,7 @@ async function listAppointmentsHandler(req, res) {
     const filter = centerId ? { serviceCenter: centerId } : {};
     const appointments = await Appointment.find(filter)
       .populate('serviceCenter', 'name address')
+      .populate('customer', 'name email phone')
       .sort({ queueNumber: 1 });
 
     const confirmationCodes = appointments

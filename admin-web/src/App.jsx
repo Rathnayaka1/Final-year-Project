@@ -701,6 +701,7 @@ export default function App() {
           <ProtectedFeature userRole={auth.user.role} feature="appointments">
             <AppointmentTable
               appointments={appointments}
+              customers={allCustomers}
               onUpdate={handleAppointmentUpdate}
               updatingId={updatingAppointmentId}
               technicians={technicians}
