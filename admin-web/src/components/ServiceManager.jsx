@@ -44,6 +44,8 @@ export default function ServiceManager({ services, onCreate, onUpdate, onDelete,
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(initialForm);
+  const [serviceSearch, setServiceSearch] = useState('');
+  const [vehicleFilter, setVehicleFilter] = useState('all');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -230,6 +232,45 @@ export default function ServiceManager({ services, onCreate, onUpdate, onDelete,
         </form>
       )}
 
+      {/* ── Filter Bar ── */}
+      <div style={{
+        padding: '0.85rem 1.5rem',
+        borderBottom: '1px solid #e2e8f0',
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '0.65rem',
+        alignItems: 'center'
+      }}>
+        {/* Service name search */}
+        <input
+          type="search"
+          placeholder="🔍 Search by service name..."
+          value={serviceSearch}
+          onChange={(e) => setServiceSearch(e.target.value)}
+          style={inputSt}
+        />
+
+        {/* Vehicle category dropdown */}
+        <select
+          value={vehicleFilter}
+          onChange={(e) => setVehicleFilter(e.target.value)}
+          style={inputSt}
+        >
+          <option value="all">🚗🚐🚖 All Categories</option>
+          {VEHICLE_OPTIONS.filter(o => o.value !== 'All').map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+
+        <span style={{ marginLeft: 'auto', fontSize: '0.85rem', color: '#64748b' }}>
+          {services.filter(s => {
+            const matchName = !serviceSearch.trim() || s.name?.toLowerCase().includes(serviceSearch.toLowerCase());
+            const matchVehicle = vehicleFilter === 'all' || (s.vehicleType || 'All') === vehicleFilter || (s.vehicleType || 'All') === 'All';
+            return matchName && matchVehicle;
+          }).length} / {services.length} shown
+        </span>
+      </div>
+
       <div className="table-wrapper">
         <table>
           <thead>
@@ -243,14 +284,22 @@ export default function ServiceManager({ services, onCreate, onUpdate, onDelete,
             </tr>
           </thead>
           <tbody>
-            {services.length === 0 && (
-              <tr>
-                <td colSpan={6} className="empty">
-                  No services available. Click "Add Service" to get started.
-                </td>
-              </tr>
-            )}
-            {services.map((service) => (
+            {(() => {
+              const filtered = services.filter(s => {
+                const matchName = !serviceSearch.trim() || s.name?.toLowerCase().includes(serviceSearch.toLowerCase());
+                const matchVehicle = vehicleFilter === 'all' || (s.vehicleType || 'All') === vehicleFilter || (s.vehicleType || 'All') === 'All';
+                return matchName && matchVehicle;
+              });
+              if (filtered.length === 0) return (
+                <tr>
+                  <td colSpan={6} className="empty">
+                    {serviceSearch || vehicleFilter !== 'all'
+                      ? 'No services match the selected filters.'
+                      : 'No services available. Click "Add Service" to get started.'}
+                  </td>
+                </tr>
+              );
+              return filtered.map((service) => (
               <tr key={service.id}>
                 <td>
                   <strong>{service.name}</strong>
@@ -278,10 +327,21 @@ export default function ServiceManager({ services, onCreate, onUpdate, onDelete,
                   </div>
                 </td>
               </tr>
-            ))}
+              ));
+            })()}
           </tbody>
         </table>
       </div>
     </div>
   );
 }
+
+const inputSt = {
+  padding: '0.45rem 0.75rem',
+  border: '1.5px solid #e2e8f0',
+  borderRadius: '7px',
+  fontSize: '0.88rem',
+  color: '#0f172a',
+  background: '#fff',
+  outline: 'none'
+};

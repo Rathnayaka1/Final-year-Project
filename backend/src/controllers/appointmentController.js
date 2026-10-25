@@ -42,8 +42,15 @@ function serializeAppointment(doc) {
   }
 
   if (appointment.customer && typeof appointment.customer === 'object') {
-    if (!appointment.customerEmail && appointment.customer.email) {
+    // Always copy from populated customer object so all service centers show email correctly
+    if (appointment.customer.email) {
       appointment.customerEmail = appointment.customer.email;
+    }
+    if (!appointment.customerName && appointment.customer.name) {
+      appointment.customerName = appointment.customer.name;
+    }
+    if (!appointment.customerPhone && appointment.customer.phone) {
+      appointment.customerPhone = appointment.customer.phone;
     }
     appointment.customerId = (appointment.customer._id || appointment.customer.id)?.toString();
     appointment.customer = (appointment.customer._id || appointment.customer.id)?.toString();

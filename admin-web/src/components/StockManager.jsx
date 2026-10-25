@@ -6,6 +6,7 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
   const [forecastStockId,setForecastStockId]=useState(null);
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [stockSearch, setStockSearch] = useState('');
   const [toasts, setToasts] = useState([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef(null);
@@ -317,6 +318,30 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
           </form>
         )}
 
+        {/* ── Search Bar ── */}
+        <div style={{ padding: '0.85rem 1.5rem', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <input
+            type="search"
+            placeholder="🔍 Search by part name..."
+            value={stockSearch}
+            onChange={(e) => setStockSearch(e.target.value)}
+            style={{
+              width: '100%',
+              maxWidth: '360px',
+              padding: '0.5rem 0.85rem',
+              border: '1.5px solid #e2e8f0',
+              borderRadius: '8px',
+              fontSize: '0.88rem',
+              outline: 'none'
+            }}
+          />
+          {stockSearch && (
+            <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
+              {stocks.filter(s => s.partName?.toLowerCase().includes(stockSearch.toLowerCase())).length} / {stocks.length} shown
+            </span>
+          )}
+        </div>
+
         <div className="table-wrapper">
           <table>
             <thead>
@@ -332,14 +357,19 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
               </tr>
             </thead>
             <tbody>
-              {stocks.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="empty">
-                    No parts in inventory. Click "Add Part" to start tracking.
-                  </td>
-                </tr>
-              )}
-              {stocks.map((stock) => {
+              {(() => {
+                const filtered = stocks.filter(s =>
+                  !stockSearch.trim() ||
+                  s.partName?.toLowerCase().includes(stockSearch.toLowerCase())
+                );
+                if (filtered.length === 0) return (
+                  <tr>
+                    <td colSpan={8} className="empty">
+                      {stockSearch ? `No parts found for "${stockSearch}"` : 'No parts in inventory. Click "Add Part" to start tracking.'}
+                    </td>
+                  </tr>
+                );
+                return filtered.map((stock) => {
                 const status = getStockStatus(stock);
                 return (
                   <tr key={stock.id}>
@@ -369,7 +399,8 @@ export default function StockManager({ stocks, onCreate, onUpdate, onDelete, loa
                     </td>
                   </tr>
                 );
-              })}
+              });
+            })()}
             </tbody>
           </table>
         </div>

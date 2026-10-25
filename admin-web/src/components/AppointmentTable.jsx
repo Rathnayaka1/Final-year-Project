@@ -48,6 +48,11 @@ export default function AppointmentTable({ appointments, onUpdate, updatingId, t
     return '';
   };
 
+  // --- Technician options for dropdown ---
+  const techOptions = technicians.length > 0
+    ? technicians
+    : Object.entries(techMap).map(([id, name]) => ({ id, name }));
+
   // --- Filter logic (AND) ---
   const filtered = appointments.filter((appt) => {
     const custEmail = getCustomerEmail(appt);
@@ -67,7 +72,6 @@ export default function AppointmentTable({ appointments, onUpdate, updatingId, t
     } else if (dateFilter === 'custom') {
       matchDate = appt.preferredDate === customDate;
     }
-    // dateFilter === 'all' → matchDate stays true
 
     // 3. Status filter
     let matchStatus = true;
