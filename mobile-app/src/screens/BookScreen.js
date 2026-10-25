@@ -167,18 +167,58 @@ export default function BookScreen({ navigation }) {
     return () => { isMounted = false; };
   }, [bookingForm.vehicleLocationLatitude, bookingForm.vehicleLocationLongitude, fetchNearbyCenters]);
 
+  const filteredServices = useMemo(() => {
+    const centerId = bookingForm.serviceCenterId;
+    const vType = bookingForm.vehicleType || 'Car';
+
+    let list = services;
+    if (centerId) {
+      const match = services.filter((s) => {
+        const sCenterId = s.serviceCenter?.id || s.serviceCenter?._id || s.serviceCenter;
+        return !sCenterId || sCenterId === centerId;
+      });
+      if (match.length > 0) list = match;
+    }
+
+    const byVehicle = list.filter((s) => !s.vehicleType || s.vehicleType === 'All' || s.vehicleType === vType);
+    return byVehicle.length > 0 ? byVehicle : list;
+  }, [services, bookingForm.serviceCenterId, bookingForm.vehicleType]);
+
+  useEffect(() => {
+    if (!filteredServices || filteredServices.length === 0) return;
+
+    setBookingForm((prev) => {
+      const isAlreadyInFiltered = filteredServices.some((s) => (s.id || s._id) === prev.serviceId);
+      if (isAlreadyInFiltered) return prev;
+
+      const currentService = services.find((s) => (s.id || s._id) === prev.serviceId);
+      if (currentService) {
+        const matchByName = filteredServices.find((s) => s.name === currentService.name);
+        if (matchByName) {
+          return { ...prev, serviceId: matchByName.id || matchByName._id };
+        }
+        const matchByType = filteredServices.find((s) => s.serviceType === currentService.serviceType);
+        if (matchByType) {
+          return { ...prev, serviceId: matchByType.id || matchByType._id };
+        }
+      }
+
+      return { ...prev, serviceId: filteredServices[0].id || filteredServices[0]._id };
+    });
+  }, [filteredServices, services]);
+
   const selectedService = useMemo(
     () => services.find((svc) => (svc.id || svc._id) === bookingForm.serviceId),
     [services, bookingForm.serviceId]
   );
 
   const normalizedServiceType = useMemo(() => {
-    if (!selectedService?.name) return 'Interior';
-    const name = selectedService.name.toLowerCase();
-    if (name.includes('interior')) return 'Interior';
-    if (name.includes('full')) return 'Full Body';
-    if (name.includes('wash') || name.includes('body')) return 'Body Wash';
-    return 'Interior';
+    const name = (selectedService?.name || '').toLowerCase();
+    if (name.includes('interior') || name.includes('sanitization') || name.includes('steam')) return 'Interior';
+    if (name.includes('full') || name.includes('hybrid')) return 'Full Body';
+    if (name.includes('wash')) return 'Body Wash';
+    if (selectedService?.serviceType) return selectedService.serviceType;
+    return 'Body Wash';
   }, [selectedService]);
 
   useEffect(() => {
@@ -439,7 +479,7 @@ export default function BookScreen({ navigation }) {
         <ActivityIndicator color="#003D82" />
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.serviceChips}>
-          {services.map((service) => {
+          {filteredServices.map((service) => {
             const selected = service.id === bookingForm.serviceId;
             return (
               <Pressable
@@ -605,7 +645,7 @@ export default function BookScreen({ navigation }) {
                       )}
                       {isLow && (
                         <View style={styles.aiBadgeLow}>
-                          <Text style={styles.aiBadgeLowText}>⚡ STANDARD Match</Text>
+                          <Text style={styles.aiBadgeLowText}>⚡ LOW Match</Text>
                         </View>
                       )}
                     </View>
@@ -640,10 +680,10 @@ export default function BookScreen({ navigation }) {
                 <View style={[styles.aiInsightBox, isHigh ? styles.aiInsightBoxHigh : styles.aiInsightBoxNormal]}>
                   <Text style={[styles.aiInsightText, isHigh ? styles.aiInsightTextHigh : styles.aiInsightTextNormal]}>
                     {isHigh
-                      ? `High turnaround efficiency predicted for ${bookingForm.vehicleType || 'Car'} ${normalizedServiceType}`
+                      ? `High efficiency predicted for ${bookingForm.vehicleType || 'Car'} • ${selectedService?.name || normalizedServiceType}`
                       : isMedium
-                      ? `Reliable service match for ${bookingForm.vehicleType || 'Car'}`
-                      : `Standard performance baseline`}
+                      ? `Reliable service match for ${bookingForm.vehicleType || 'Car'} • ${selectedService?.name || normalizedServiceType}`
+                      : `Standard performance baseline for ${bookingForm.vehicleType || 'Car'}`}
                   </Text>
                 </View>
               </Pressable>

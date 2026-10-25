@@ -6,7 +6,8 @@ const initialState = {
   durationHours: 0,
   durationMinutes: 30,
   basePrice: 0,
-  vehicleType: 'All'
+  vehicleType: 'All',
+  serviceType: 'Body Wash'
 };
 
 export default function ServiceCreator({ onCreate, loading }) {
@@ -23,12 +24,18 @@ export default function ServiceCreator({ onCreate, loading }) {
     const mins = parseInt(form.durationMinutes || 0, 10);
     const totalDuration = (hrs * 60) + mins;
 
+    let derivedType = 'Body Wash';
+    const lower = (form.name || '').toLowerCase();
+    if (lower.includes('interior') || lower.includes('steam')) derivedType = 'Interior';
+    else if (lower.includes('full') || lower.includes('wax') || lower.includes('hybrid') || lower.includes('lube')) derivedType = 'Full Body';
+
     const payload = {
       name: form.name,
       description: form.description,
       duration: totalDuration > 0 ? totalDuration : 30,
       basePrice: Number(form.basePrice) || 0,
-      vehicleType: form.vehicleType || 'All'
+      vehicleType: form.vehicleType || 'All',
+      serviceType: derivedType
     };
 
     onCreate(payload, () => setForm(initialState));
@@ -50,10 +57,9 @@ export default function ServiceCreator({ onCreate, loading }) {
         <label>
           Vehicle Category
           <select name="vehicleType" value={form.vehicleType} onChange={handleChange}>
-            <option value="All">🚗🚐 All Vehicles</option>
+            <option value="All">🚗🚐🚖 All Vehicles</option>
             <option value="Car">🚗 Car</option>
             <option value="Van">🚐 Van</option>
-            <option value="Mini Bus">🚌 Mini Bus</option>
             <option value="Cab">🚖 Cab</option>
           </select>
         </label>
