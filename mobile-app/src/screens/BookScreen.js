@@ -683,14 +683,6 @@ export default function BookScreen({ navigation }) {
           />
         </View>
       )}
-      <TextInput
-        placeholder="Notes for technician"
-        style={[styles.input, styles.notes]}
-        multiline
-        value={bookingForm.notes}
-        onChangeText={(value) => handleFormChange('notes', value)}
-        placeholderTextColor={placeholderColor}
-      />
 
       {bookingError ? <Text style={styles.error}>{bookingError}</Text> : null}
       {bookingResult ? (
