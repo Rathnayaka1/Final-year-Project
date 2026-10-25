@@ -70,7 +70,7 @@ async function getServiceCenter(req, res) {
 }
 
 async function createServiceCenter(req, res) {
-  const { name, address, coordinates, phone, email, operatingHours, facilities } = req.body;
+  const { name, address, coordinates, phone, email, operatingHours, facilities, isActive } = req.body;
 
   if (!name || !address || !coordinates || !phone) {
     return res.status(400).json({ error: 'Name, address, coordinates, and phone are required' });
@@ -87,7 +87,8 @@ async function createServiceCenter(req, res) {
       phone,
       email,
       operatingHours,
-      facilities: facilities || []
+      facilities: facilities || [],
+      isActive: isActive !== undefined ? isActive : true
     });
 
     const obj = center.toObject();
