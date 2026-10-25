@@ -276,7 +276,7 @@ export default function App() {
       setLoading(true);
       const { serviceCenter } = await createServiceCenter(payload, token);
       setServiceCenters((prev) => [serviceCenter, ...prev]);
-      if (onSuccess) onSuccess();
+      if (onSuccess) onSuccess(serviceCenter);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -725,7 +725,6 @@ export default function App() {
             <ServiceCenterManager
               serviceCenters={serviceCenters}
               currentCenterId={auth?.user?.serviceCenter}
-              onCreate={handleServiceCenterCreate}
               onUpdate={handleServiceCenterUpdate}
               loading={loading}
             />

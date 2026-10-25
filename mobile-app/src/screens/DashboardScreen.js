@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { getActiveAppointment, getNearbyServiceCenters, getNextServiceReminder, getUnreadNotificationCount } from '../services/api';
+import { getActiveAppointment, getNearbyServiceCenters, getServiceCenters, getNextServiceReminder, getUnreadNotificationCount } from '../services/api';
 
 export default function DashboardScreen({ navigation }) {
   const { user, token, logout } = useAuth();
@@ -25,11 +25,15 @@ export default function DashboardScreen({ navigation }) {
 
   async function loadDashboardData() {
     try {
-      const [appointment, centers, reminder] = await Promise.all([
+      let [appointment, centers, reminder] = await Promise.all([
         getActiveAppointment(token).catch(() => null),
-        getNearbyServiceCenters(6.9271, 79.8612, 10000).catch(() => []),
+        getNearbyServiceCenters(6.9271, 79.8612, 50000).catch(() => []),
         getNextServiceReminder(token).catch(() => null)
       ]);
+
+      if (!centers || centers.length === 0) {
+        centers = await getServiceCenters().catch(() => []);
+      }
 
       setActiveAppointment(appointment);
       setNearestCenter(centers?.[0] || null);

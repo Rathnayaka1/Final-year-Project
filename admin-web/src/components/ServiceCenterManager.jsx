@@ -116,10 +116,15 @@ export default function ServiceCenterManager({ serviceCenters, currentCenterId, 
         );
       };
 
+      const isDummyPhone = (ph) => {
+        if (!ph) return true;
+        return ph.trim() === '+94110000000';
+      };
+
       setForm({
         name: currentCenter.name || '',
         address: isDummyAddress(currentCenter.address) ? '' : (currentCenter.address || ''),
-        phone: currentCenter.phone || '',
+        phone: isDummyPhone(currentCenter.phone) ? '' : (currentCenter.phone || ''),
         email: currentCenter.email || '',
         latitude: currentCenter.location?.coordinates?.[1]?.toString() || '6.9271',
         longitude: currentCenter.location?.coordinates?.[0]?.toString() || '79.8612',
@@ -165,10 +170,10 @@ export default function ServiceCenterManager({ serviceCenters, currentCenterId, 
     if (!currentCenter) return;
     
     const payload = {
-      name: form.name,
-      address: form.address,
-      phone: form.phone,
-      email: form.email || undefined,
+      name: form.name.trim(),
+      address: form.address.trim(),
+      phone: form.phone.trim(),
+      email: form.email ? form.email.trim() : undefined,
       coordinates: {
         lat: parseFloat(form.latitude) || 6.9271,
         lng: parseFloat(form.longitude) || 79.8612
@@ -177,7 +182,7 @@ export default function ServiceCenterManager({ serviceCenters, currentCenterId, 
       isActive: form.isActive
     };
 
-    onUpdate(currentCenter.id, payload, () => {
+    onUpdate(currentCenter.id || currentCenter._id, payload, () => {
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 4000);
     });
@@ -243,7 +248,7 @@ export default function ServiceCenterManager({ serviceCenters, currentCenterId, 
                 type="tel"
                 value={form.phone} 
                 onChange={handleChange} 
-                placeholder="+94112345678"
+                placeholder="e.g. +94 11 234 5678"
                 required 
               />
             </label>

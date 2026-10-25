@@ -39,6 +39,21 @@ const initialBooking = {
   notes: ''
 };
 
+function calculateDistanceInMeters(lat1, lon1, lat2, lon2) {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+  const R = 6371e3;
+  const p1 = (lat1 * Math.PI) / 180;
+  const p2 = (lat2 * Math.PI) / 180;
+  const dp = ((lat2 - lat1) * Math.PI) / 180;
+  const dl = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dp / 2) * Math.sin(dp / 2) +
+    Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
 export default function BookScreen({ navigation }) {
   const { token, user } = useAuth();
   const [services, setServices] = useState([]);
@@ -61,16 +76,16 @@ export default function BookScreen({ navigation }) {
     try {
       if (isRefresh) setRefreshing(true);
       let [servicesList, centers] = await Promise.all([
-        getServices(),
-        getNearbyServiceCenters(6.9271, 79.8612, 100000).catch(() => [])
+        getServices().catch(() => []),
+        getServiceCenters().catch(() => [])
       ]);
 
-      if (!centers || centers.length === 0) {
-        centers = await getServiceCenters().catch(() => []);
+      if ((!centers || centers.length === 0)) {
+        centers = await getNearbyServiceCenters(6.9271, 79.8612, 100000).catch(() => []);
       }
 
-      setServices(servicesList);
-      setServiceCenters(centers);
+      setServices(servicesList || []);
+      setServiceCenters(centers || []);
 
       const selectedCenterId = centers[0]?.id || centers[0]?._id || '';
       setBookingForm((prev) => ({
@@ -168,6 +183,30 @@ export default function BookScreen({ navigation }) {
       longitude: Number.isFinite(longitude) ? longitude : defaultVehicleLocation.longitude
     };
   }, [bookingForm.vehicleLocationLatitude, bookingForm.vehicleLocationLongitude]);
+
+  const sortedServiceCenters = useMemo(() => {
+    const vLat = parseFloat(bookingForm.vehicleLocationLatitude);
+    const vLng = parseFloat(bookingForm.vehicleLocationLongitude);
+
+    return [...serviceCenters]
+      .map((center) => {
+        const cLat = center.location?.coordinates?.[1];
+        const cLng = center.location?.coordinates?.[0];
+        let distance = null;
+        if (Number.isFinite(vLat) && Number.isFinite(vLng) && Number.isFinite(cLat) && Number.isFinite(cLng)) {
+          distance = calculateDistanceInMeters(vLat, vLng, cLat, cLng);
+        } else if (center.distance != null) {
+          distance = center.distance;
+        }
+        return { ...center, distance };
+      })
+      .sort((a, b) => {
+        if (a.distance != null && b.distance != null) return a.distance - b.distance;
+        if (a.distance != null) return -1;
+        if (b.distance != null) return 1;
+        return 0;
+      });
+  }, [serviceCenters, bookingForm.vehicleLocationLatitude, bookingForm.vehicleLocationLongitude]);
 
   const handleLocationSelect = (latitude, longitude) => {
     setBookingForm((prev) => ({
@@ -398,9 +437,9 @@ export default function BookScreen({ navigation }) {
       </View>
 
       <Text style={styles.sectionTitle}>Choose service center</Text>
-      {serviceCenters.length > 0 ? (
+      {sortedServiceCenters.length > 0 ? (
         <View style={styles.centerList}>
-          {serviceCenters.map((center) => {
+          {sortedServiceCenters.map((center) => {
             const selected = (center.id || center._id) === bookingForm.serviceCenterId;
             return (
               <Pressable
@@ -414,11 +453,16 @@ export default function BookScreen({ navigation }) {
                   </Text>
                   {selected && <Text style={styles.selectedBadge}>✓</Text>}
                 </View>
-                {center.distance && (
+                {center.distance != null && (
                   <Text style={styles.centerDistance}>
                     {(center.distance / 1000).toFixed(1)} km away
                   </Text>
                 )}
+                {center.address ? (
+                  <Text style={[styles.centerQueue, { marginTop: 2, color: '#6B7280' }]} numberOfLines={1}>
+                    📍 {center.address}
+                  </Text>
+                ) : null}
                 <Text style={styles.centerQueue}>
                   Queue: {center.currentQueueLength || 0} vehicles
                 </Text>

@@ -5,6 +5,7 @@ export default function LoginForm({ onSubmit, onRegister, loading }) {
   const [isRegistering, setIsRegistering] = useState(false);
   const [centerName, setCenterName] = useState('');
   const [adminName, setAdminName] = useState('');
+  const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('admin@servicecenter.dev');
   const [password, setPassword] = useState('Admin123!');
   const [centerStaffList, setCenterStaffList] = useState([]);
@@ -94,7 +95,8 @@ export default function LoginForm({ onSubmit, onRegister, loading }) {
         centerName: centerName.trim(),
         name: adminName.trim(),
         email: email.trim(),
-        password: password.trim()
+        password: password.trim(),
+        phone: phone.trim()
       });
     } else {
       onSubmit({ email, password });
@@ -186,6 +188,16 @@ export default function LoginForm({ onSubmit, onRegister, loading }) {
               placeholder="e.g. Kandy Auto Hub"
               value={centerName}
               onChange={(e) => setCenterName(e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Official Contact Phone
+            <input
+              type="tel"
+              placeholder="e.g. +94112345678"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               required
             />
           </label>

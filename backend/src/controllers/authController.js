@@ -66,7 +66,7 @@ const ServiceCenter = require('../models/ServiceCenter');
 const Service = require('../models/Service');
 
 async function registerCenter(req, res) {
-  const { centerName, name, email, password } = req.body || {};
+  const { centerName, name, email, password, phone } = req.body || {};
 
   if (!centerName || !email || !password) {
     return res.status(400).json({ error: 'Service Center Name, Email, and Password are required' });
@@ -83,7 +83,7 @@ async function registerCenter(req, res) {
       name: centerName.trim(),
       address: `${centerName.trim()} Main Workshop`,
       location: { type: 'Point', coordinates: [80.2167, 6.9271] },
-      phone: '+94110000000',
+      phone: phone ? phone.trim() : '+94110000000',
       email: email.toLowerCase().trim(),
       operatingHours: {
         monday: { open: '08:00', close: '18:00' },
