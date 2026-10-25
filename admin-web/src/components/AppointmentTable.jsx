@@ -17,7 +17,7 @@ const serviceStatuses = [
 
 const todayStr = new Date().toISOString().split('T')[0];
 
-export default function AppointmentTable({ appointments, onUpdate, updatingId, technicians = [] }) {
+export default function AppointmentTable({ appointments, onUpdate, updatingId, technicians = [], customers = [] }) {
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('all');
   const [customDate, setCustomDate] = useState(todayStr);
@@ -27,14 +27,37 @@ export default function AppointmentTable({ appointments, onUpdate, updatingId, t
   const techMap = {};
   technicians.forEach((t) => { techMap[t.id || t._id] = t.name; });
 
+  // Build customer id / phone / name -> email map for fallback
+  const custEmailMap = {};
+  customers.forEach((c) => {
+    const id = (c.id || c._id)?.toString();
+    if (id && c.email) custEmailMap[id] = c.email;
+    if (c.phone && c.email) custEmailMap[c.phone] = c.email;
+    if (c.name && c.email) custEmailMap[c.name.toLowerCase()] = c.email;
+  });
+
+  const getCustomerEmail = (appt) => {
+    if (appt.customerEmail) return appt.customerEmail;
+    if (appt.customer) {
+      if (typeof appt.customer === 'object' && appt.customer.email) return appt.customer.email;
+      const cid = (appt.customer.id || appt.customer._id || appt.customer)?.toString();
+      if (cid && custEmailMap[cid]) return custEmailMap[cid];
+    }
+    if (appt.customerPhone && custEmailMap[appt.customerPhone]) return custEmailMap[appt.customerPhone];
+    if (appt.customerName && custEmailMap[appt.customerName.toLowerCase()]) return custEmailMap[appt.customerName.toLowerCase()];
+    return '';
+  };
+
   // --- Filter logic (AND) ---
   const filtered = appointments.filter((appt) => {
+    const custEmail = getCustomerEmail(appt);
     // 1. Search filter
     const q = search.toLowerCase();
     const matchSearch = !q ||
       appt.customerName?.toLowerCase().includes(q) ||
       appt.confirmationCode?.toLowerCase().includes(q) ||
       appt.customerPhone?.includes(q) ||
+      custEmail?.toLowerCase().includes(q) ||
       appt.serviceName?.toLowerCase().includes(q);
 
     // 2. Date filter
@@ -75,7 +98,7 @@ export default function AppointmentTable({ appointments, onUpdate, updatingId, t
         {/* Search */}
         <input
           type="search"
-          placeholder="🔍 Name / Code / Phone"
+          placeholder="🔍 Name / Code / Phone / Email"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={inputSt}
@@ -139,7 +162,17 @@ export default function AppointmentTable({ appointments, onUpdate, updatingId, t
                 <td>{appt.queueNumber}</td>
                 <td>
                   <strong>{appt.customerName}</strong>
-                  <div className="muted small">{appt.customerPhone || appt.customerEmail}</div>
+                  {getCustomerEmail(appt) && (
+                    <div className="muted small" style={{ wordBreak: 'break-all' }}>
+                      {getCustomerEmail(appt)}
+                    </div>
+                  )}
+                  {appt.customerPhone && (
+                    <div className="muted small">{appt.customerPhone}</div>
+                  )}
+                  {!getCustomerEmail(appt) && !appt.customerPhone && (
+                    <div className="muted small">—</div>
+                  )}
                 </td>
                 <td>{appt.serviceName}</td>
                 <td>
