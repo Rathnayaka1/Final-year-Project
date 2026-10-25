@@ -4,6 +4,7 @@ import { predictTechnicians } from '../services/api';
 export default function TechnicianManager({ technicians = [], onCreate, onUpdate, onDelete, loading, token }) {
   const [isCreating, setIsCreating] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [techSearch, setTechSearch] = useState('');
   const [form, setForm] = useState({
     name: '',
     phone: '',
@@ -324,6 +325,25 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
         </form>
       )}
 
+      {/* ── Search Bar ──────────────────────────────────────────── */}
+      <div style={{ padding: '0.85rem 1.5rem', borderBottom: '1px solid #e2e8f0' }}>
+        <input
+          type="search"
+          placeholder="🔍 Search technician by name..."
+          value={techSearch}
+          onChange={(e) => setTechSearch(e.target.value)}
+          style={{
+            width: '100%',
+            maxWidth: '360px',
+            padding: '0.5rem 0.85rem',
+            border: '1.5px solid #e2e8f0',
+            borderRadius: '8px',
+            fontSize: '0.88rem',
+            outline: 'none'
+          }}
+        />
+      </div>
+
       {/* ── Technicians Table with AI Column ──────────────────── */}
       <div className="table-wrapper">
         <table>
@@ -339,14 +359,19 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
             </tr>
           </thead>
           <tbody>
-            {technicians.length === 0 && (
-              <tr>
-                <td colSpan={7} className="empty">
-                  No technicians found. Add one to get started.
-                </td>
-              </tr>
-            )}
-            {technicians.map((technician) => {
+            {(() => {
+              const filtered = technicians.filter(t =>
+                !techSearch.trim() ||
+                t.name?.toLowerCase().includes(techSearch.toLowerCase())
+              );
+              if (filtered.length === 0) return (
+                <tr>
+                  <td colSpan={7} className="empty">
+                    {techSearch ? `No technicians found for "${techSearch}"` : 'No technicians found. Add one to get started.'}
+                  </td>
+                </tr>
+              );
+              return filtered.map((technician) => {
               const techId = technician.id || technician._id;
               const ai = predictionsMap[techId];
               const isHigh = ai?.level === 'HIGH';
@@ -427,8 +452,9 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
                     </div>
                   </td>
                 </tr>
-              );
-            })}
+                );
+              });
+            })()}
           </tbody>
         </table>
       </div>
