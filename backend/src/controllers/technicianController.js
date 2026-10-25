@@ -1,4 +1,5 @@
 const Technician = require('../models/Technician');
+const Appointment = require('../models/Appointment');
 function serializeTechnician(doc) {
   const technician = doc.toObject({ versionKey: false });
   technician.id = technician._id;
@@ -110,7 +111,7 @@ async function deleteTechnician(req, res) {
   }
 }
 
-const { predictTechnicianPerformance } = require('../services/aiPerformanceService');
+const { predictTechnicianPerformance } = require('../services/technicianperformance');
 
 async function getAvailableTechnicians(req, res) {
   try {
@@ -152,11 +153,60 @@ async function predictTechniciansEndpoint(req, res) {
   }
 }
 
+async function rateTechnician(req, res) {
+  try {
+    const { id } = req.params;
+    const { rating, appointmentId } = req.body || {};
+    const numRating = Number(rating);
+
+    if (!numRating || numRating < 1 || numRating > 5) {
+      return res.status(400).json({ error: 'Rating must be a number between 1 and 5' });
+    }
+
+    const tech = await Technician.findById(id);
+    if (!tech) return res.status(404).json({ error: 'Technician not found' });
+
+    const oldCount = tech.totalRatings || 0;
+    const oldAvg = tech.averageRating || 4.0;
+    const newCount = oldCount + 1;
+    const newAvg = Number((((oldAvg * oldCount) + numRating) / newCount).toFixed(2));
+
+    tech.totalRatings = newCount;
+    tech.averageRating = newAvg;
+    await tech.save();
+
+    let updatedAppointment = null;
+    if (appointmentId) {
+      updatedAppointment = await Appointment.findByIdAndUpdate(
+        appointmentId,
+        { 
+          customerRating: numRating,
+          isSuccessJob: numRating >= 3
+        },
+        { new: true }
+      );
+    }
+
+    const populated = await Technician.findById(tech._id).populate('serviceCenter', 'name address');
+
+    return res.status(200).json({
+      message: 'Rating recorded successfully',
+      averageRating: tech.averageRating,
+      totalRatings: tech.totalRatings,
+      technician: serializeTechnician(populated),
+      appointmentRating: numRating
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
 module.exports = {
   listTechnicians,
   getAvailableTechnicians,
   createTechnician,
   updateTechnician,
   deleteTechnician,
-  predictTechniciansEndpoint
+  predictTechniciansEndpoint,
+  rateTechnician
 };

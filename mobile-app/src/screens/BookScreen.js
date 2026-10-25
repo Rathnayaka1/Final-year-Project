@@ -71,17 +71,36 @@ export default function BookScreen({ navigation }) {
   const [tempTime, setTempTime] = useState(new Date());
   const placeholderColor = '#9CA3AF';
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingCenters, setLoadingCenters] = useState(false);
+
+  // Fetch nearby service centers with tiered fallback (25km → 50km → all)
+  const fetchNearbyCenters = useCallback(async (lat, lng) => {
+    // Try 25km first
+    let centers = await getNearbyServiceCenters(lat, lng, 25000).catch(() => []);
+    // Fallback to 50km if no results
+    if (!centers || centers.length === 0) {
+      centers = await getNearbyServiceCenters(lat, lng, 50000).catch(() => []);
+    }
+    // Fallback to all centers if still no results
+    if (!centers || centers.length === 0) {
+      centers = await getServiceCenters().catch(() => []);
+    }
+    return centers;
+  }, []);
 
   const loadData = useCallback(async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true);
+      const lat = defaultVehicleLocation.latitude;
+      const lng = defaultVehicleLocation.longitude;
+
       let [servicesList, centers] = await Promise.all([
         getServices().catch(() => []),
         getServiceCenters().catch(() => [])
       ]);
 
-      if ((!centers || centers.length === 0)) {
-        centers = await getNearbyServiceCenters(6.9271, 79.8612, 100000).catch(() => []);
+      if (!centers || centers.length === 0) {
+        centers = await fetchNearbyCenters(lat, lng);
       }
 
       setServices(servicesList || []);
@@ -104,7 +123,7 @@ export default function BookScreen({ navigation }) {
       setLoadingServices(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [user, fetchNearbyCenters]);
 
   // Auto-update: reload services & service centers every time screen gains focus
   useFocusEffect(
@@ -112,6 +131,41 @@ export default function BookScreen({ navigation }) {
       loadData();
     }, [loadData])
   );
+
+  // Re-fetch nearby service centers when vehicle location changes
+  useEffect(() => {
+    const lat = parseFloat(bookingForm.vehicleLocationLatitude);
+    const lng = parseFloat(bookingForm.vehicleLocationLongitude);
+
+    // Skip if coordinates are invalid or still at default (initial load already handled)
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    if (lat === defaultVehicleLocation.latitude && lng === defaultVehicleLocation.longitude) return;
+
+    let isMounted = true;
+    async function reloadCenters() {
+      setLoadingCenters(true);
+      try {
+        const centers = await fetchNearbyCenters(lat, lng);
+        if (!isMounted) return;
+        setServiceCenters(centers);
+
+        // Auto-select first center if current selection is not in the new list
+        if (centers.length > 0) {
+          setBookingForm((prev) => {
+            const exists = centers.some((c) => (c.id || c._id) === prev.serviceCenterId);
+            return exists ? prev : { ...prev, serviceCenterId: centers[0]?.id || centers[0]?._id || '' };
+          });
+        }
+      } catch (err) {
+        console.warn('Failed to reload nearby centers:', err);
+      } finally {
+        if (isMounted) setLoadingCenters(false);
+      }
+    }
+
+    reloadCenters();
+    return () => { isMounted = false; };
+  }, [bookingForm.vehicleLocationLatitude, bookingForm.vehicleLocationLongitude, fetchNearbyCenters]);
 
   const selectedService = useMemo(
     () => services.find((svc) => (svc.id || svc._id) === bookingForm.serviceId),
@@ -367,7 +421,7 @@ export default function BookScreen({ navigation }) {
         vehicleLocationLongitude: defaultVehicleLocation.longitude.toString()
       }));
     } catch (err) {
-      setBookingError(err.message);
+      setBookingError(err.response?.data?.error || err.message);
     } finally {
       setSubmitting(false);
     }
@@ -436,7 +490,24 @@ export default function BookScreen({ navigation }) {
         })}
       </View>
 
+      <Text style={styles.sectionTitle}>Vehicle location</Text>
+      <LocationPicker
+        latitude={selectedVehicleLocation.latitude}
+        longitude={selectedVehicleLocation.longitude}
+        onLocationSelect={handleLocationSelect}
+        label={bookingForm.vehicleLocationLabel}
+        onLabelChange={(value) => handleFormChange('vehicleLocationLabel', value)}
+        placeholderColor={placeholderColor}
+        useCurrentLocation={handleUseCurrentLocation}
+      />
+
       <Text style={styles.sectionTitle}>Choose service center</Text>
+      {loadingCenters && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+          <ActivityIndicator color="#FF9800" size="small" />
+          <Text style={{ fontSize: 12, color: '#6B7280' }}>Finding nearby service centers…</Text>
+        </View>
+      )}
       {sortedServiceCenters.length > 0 ? (
         <View style={styles.centerList}>
           {sortedServiceCenters.map((center) => {
@@ -477,9 +548,6 @@ export default function BookScreen({ navigation }) {
       {/* Technician Selection with AI Performance Badges */}
       <View style={styles.techSectionHeader}>
         <Text style={styles.sectionTitle}>Choose Technician</Text>
-        <View style={styles.aiHeaderTag}>
-          <Text style={styles.aiHeaderTagText}>🤖 AI Analyzed</Text>
-        </View>
       </View>
       <Text style={styles.techSectionSub}>
         Model evaluates experience, ratings, and vehicle compatibility for your {bookingForm.vehicleType || 'Car'}:
@@ -588,17 +656,6 @@ export default function BookScreen({ navigation }) {
         </Text>
       )}
 
-      <Text style={styles.sectionTitle}>Vehicle location</Text>
-      <LocationPicker
-        latitude={selectedVehicleLocation.latitude}
-        longitude={selectedVehicleLocation.longitude}
-        onLocationSelect={handleLocationSelect}
-        label={bookingForm.vehicleLocationLabel}
-        onLabelChange={(value) => handleFormChange('vehicleLocationLabel', value)}
-        placeholderColor={placeholderColor}
-        useCurrentLocation={handleUseCurrentLocation}
-      />
-
       <Text style={styles.sectionTitle}>Your details</Text>
       <TextInput
         placeholder="Full name *"
@@ -674,14 +731,6 @@ export default function BookScreen({ navigation }) {
           />
         </View>
       )}
-      <TextInput
-        placeholder="Notes for technician"
-        style={[styles.input, styles.notes]}
-        multiline
-        value={bookingForm.notes}
-        onChangeText={(value) => handleFormChange('notes', value)}
-        placeholderTextColor={placeholderColor}
-      />
 
       {bookingError ? <Text style={styles.error}>{bookingError}</Text> : null}
       {bookingResult ? (
