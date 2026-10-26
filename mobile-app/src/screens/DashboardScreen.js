@@ -12,12 +12,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
-import { getActiveAppointment, getNearbyServiceCenters, getServiceCenters, getNextServiceReminder, getUnreadNotificationCount } from '../services/api';
+import { getActiveAppointment, getNextServiceReminder, getUnreadNotificationCount } from '../services/api';
 
 export default function DashboardScreen({ navigation }) {
   const { user, token, logout } = useAuth();
   const [activeAppointment, setActiveAppointment] = useState(null);
-  const [nearestCenter, setNearestCenter] = useState(null);
   const [serviceReminder, setServiceReminder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -25,18 +24,12 @@ export default function DashboardScreen({ navigation }) {
 
   async function loadDashboardData() {
     try {
-      let [appointment, centers, reminder] = await Promise.all([
+      let [appointment, reminder] = await Promise.all([
         getActiveAppointment(token).catch(() => null),
-        getNearbyServiceCenters(6.9271, 79.8612, 50000).catch(() => []),
         getNextServiceReminder(token).catch(() => null)
       ]);
 
-      if (!centers || centers.length === 0) {
-        centers = await getServiceCenters().catch(() => []);
-      }
-
       setActiveAppointment(appointment);
-      setNearestCenter(centers?.[0] || null);
       setServiceReminder(reminder);
     } catch (error) {
       console.error('Failed to load dashboard:', error);
@@ -158,44 +151,6 @@ export default function DashboardScreen({ navigation }) {
         </View>
       )}
 
-      {nearestCenter && (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Nearest Service Center</Text>
-          
-          <Text style={styles.centerNameLarge}>{nearestCenter.name}</Text>
-          
-          {nearestCenter.distance && (
-            <Text style={styles.distance}>{(nearestCenter.distance / 1000).toFixed(1)} km away</Text>
-          )}
-
-          <View style={styles.queueStatus}>
-            <View style={styles.queueRow}>
-              <Text style={styles.queueLabel}>Current Queue:</Text>
-              <View style={[styles.queueChip, { backgroundColor: getQueueColor(nearestCenter.currentQueueLength || 0) }]}>
-                <Text style={styles.queueChipText}>{nearestCenter.currentQueueLength || 0} vehicles</Text>
-              </View>
-            </View>
-
-            <View style={styles.queueRow}>
-              <Text style={styles.queueLabel}>Est. Wait Time:</Text>
-              <Text style={styles.queueValue}>
-                {getEstimatedWait(nearestCenter.currentQueueLength || 0, nearestCenter.averageWaitTime)}
-              </Text>
-            </View>
-          </View>
-
-          {nearestCenter.rating && (
-            <Text style={styles.rating}>⭐ {nearestCenter.rating.toFixed(1)} ({nearestCenter.totalRatings || 0} reviews)</Text>
-          )}
-
-          <Pressable
-            style={styles.bookButton}
-            onPress={() => navigation.navigate('Book')}
-          >
-            <Text style={styles.bookButtonText}>📍 Quick Book</Text>
-          </Pressable>
-        </View>
-      )}
 
       {!activeAppointment && (
         serviceReminder?.nextServiceDate ? (
