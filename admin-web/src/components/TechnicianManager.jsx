@@ -391,6 +391,7 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
                     ) : ai ? (
                       <div>
                         <span
+                          title={ai?.confidence ? `AI Model Prediction Confidence: ${Math.round(ai.confidence * 100)}%` : undefined}
                           className={`badge ${
                             isHigh
                               ? 'badge-ai-high'
@@ -402,11 +403,6 @@ export default function TechnicianManager({ technicians = [], onCreate, onUpdate
                           {isHigh ? '🟢 HIGH' : isMedium ? '🟡 MEDIUM' : isLow ? '🔴 LOW' : '⚪ STANDARD'}
                         </span>
                         {isTop && <span className="badge-ai-top">⭐ Top Pick</span>}
-                        {ai.confidence && (
-                          <span className="muted" style={{ fontSize: '0.75rem', marginLeft: '6px' }}>
-                            ({Math.round(ai.confidence * 100)}%)
-                          </span>
-                        )}
                       </div>
                     ) : (
                       <span className="muted">—</span>
